@@ -1,7 +1,7 @@
 from langchain_community.document_loaders import PDFPlumberLoader
 
-def load_pdf(pdf_path):
-    loader=PDFPlumberLoader(pdf_path)
+def load_pdf(file_path):
+    loader=PDFPlumberLoader(file_path)
     documents=loader.load()
     return documents
 
