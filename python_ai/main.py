@@ -5,11 +5,15 @@ from agents.react_agent import build_agent
 
 # Ask the user for a file path
 file_path = input("Enter your file path: ")
+data_file_path = input("Enter CSV/Excel path: ")
 
 # Process the document only once
 retriever = document_processor(file_path)
 
-agent=build_agent(retriever=retriever)
+agent=build_agent(
+    retriever=retriever,
+    data_file_path=data_file_path
+)
 
 
 
