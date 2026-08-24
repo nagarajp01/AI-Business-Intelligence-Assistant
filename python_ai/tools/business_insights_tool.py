@@ -1,0 +1,256 @@
+import pandas as pd
+from langchain_core.tools import BaseTool
+from agents.llm import load_llm
+from langchain_core.prompts import PromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_experimental.tools import PythonAstREPLTool
+from tools.prediction_tool import PredictionTool
+
+
+class BusinessInsightsTool(BaseTool):
+
+    name:str="Business_Insights_Tool"
+
+    description: str = (
+    "Generate business insights from uploaded CSV or Excel datasets. "
+    "Use this tool when the user asks for sales intelligence, demand analysis, "
+    "growth opportunities, business recommendations, or an overall business "
+    "assessment based on uploaded data. "
+    "The tool analyzes the actual dataset using Pandas and Python, "
+    "uses forecasting information when required, and provides "
+    "data-driven business insights and actionable recommendations. "
+    "Do not invent or assume data that is not present in the dataset."
+    )
+
+    file_path:str
+
+    def _run(self,question:str):
+
+        if self.file_path.endswith(".xlsx"):
+            df=pd.read_excel(self.file_path)
+        elif self.file_path.endswith(".csv"):
+            df=pd.read_csv(self.file_path)
+        else:
+            return "Unsupported file"
+
+        columns=list(df.columns)
+
+        # Ask LLM to identify relevant Sales Intelligence columns
+
+        prompt1 = PromptTemplate(
+            template="""
+You are a Sales Intelligence data analysis assistant.
+
+The user wants business insights from an uploaded dataset.
+
+User request:
+{question}
+
+The uploaded dataset contains these columns:
+{columns}
+
+Identify the columns that are relevant for calculating Sales Intelligence metrics.
+
+Look for columns representing concepts such as:
+- date or time
+- sales or revenue
+- product
+- region
+- quantity
+- customer
+- other business dimensions that may be useful for sales analysis
+
+Only select columns that actually exist in the provided dataset.
+
+Return ONLY a comma-separated list of the relevant column names.
+
+Do not invent column names.
+Do not include explanations.
+""",
+            input_variables=["question", "columns"]
+        )
+        llm=load_llm()
+        parser=StrOutputParser()
+        column_chain= prompt1 | llm | parser
+
+        columns_identified=column_chain.invoke({
+            "question":question,
+            "columns":columns
+        })
+
+        columns_identified=[
+            column.strip()
+            for column in columns_identified.split(",")
+        ]
+        invalid_columns=[
+            column
+            for column in columns_identified
+            if column not in columns
+        ]
+
+        if invalid_columns:
+            return f"Invalid columns identified: {invalid_columns}"
+        # Ask LLM to generate Pandas code for Sales Intelligence metrics
+        prompt2 = PromptTemplate(
+            template="""
+You are a Python data analysis assistant.
+
+You have access to a Pandas DataFrame named `df`.
+
+The user asks:
+{question}
+
+The dataset has these columns:
+{columns}
+
+The columns identified as relevant for Sales Intelligence are:
+{llm_columns}
+
+Generate Python code using Pandas to calculate the Sales Intelligence metrics
+that can be determined from the available data.
+
+Rules:
+1. Use the existing DataFrame `df`.
+2. Do not create fake or sample data.
+3. Do not load the file again.
+4. Perform the actual calculations using Pandas.
+5. Use only columns listed in `llm_columns`.
+6. Only calculate metrics that are possible from the available columns.
+7. Return only executable Python code.
+8. Do not include Markdown code fences.
+9. Do not explain the code.
+10. The final expression MUST return a Python dictionary.
+11. Use clear metric names as dictionary keys.
+12. If calculating growth rate, calculate the growth from the first
+recorded date to the last recorded date:
+
+((last sales - first sales) / first sales) * 100
+
+Use the metric name:
+first_to_last_day_growth_rate
+
+Do not call this simply "growth rate".
+""",
+            input_variables=["question", "columns", "llm_columns"]
+        )
+
+        pandas_chain=prompt2 | llm | parser
+
+        pandas_code=pandas_chain.invoke({
+            "question":question,
+            "columns":columns,
+            "llm_columns":columns_identified
+        })
+
+        pythonTool=PythonAstREPLTool(
+            locals={
+                "df":df,
+                "pd":pd
+            }
+        )
+
+        sales_metrics=pythonTool.invoke(pandas_code)
+        # Create prediction tool
+        prediction_tool=PredictionTool(
+            file_path=self.file_path
+        )
+        # Get structured forecast
+        forecast_result =prediction_tool.get_forecast(
+            question
+        )
+        # Check whether forecasting failed
+        if isinstance(forecast_result, str):
+            return forecast_result
+
+        # Create final Business Insights prompt
+        final_prompt = PromptTemplate(
+            template="""
+            You are an AI Business Intelligence assistant.
+            The user asked:{question}
+            The actual Sales Intelligence metrics calculated from the uploaded dataset are:
+            {sales_metrics}
+            The actual forecast generated by the forecasting model is:
+            {forecast_result}
+            Using ONLY the provided calculated metrics and forecast, generate a clear
+            business analysis with the following sections:
+            1. Sales Intelligence
+            - Present the important sales metrics.
+            - Mention the strongest and weakest available products, regions, or other business dimensions when those metrics are available.
+            - Do not invent metrics that were not calculated.
+            2. Demand Analysis
+            - Analyze the forecast.
+            - Identify whether demand is increasing, decreasing, stable, or fluctuating.
+            - Mention important peaks or dips when visible in the forecast.
+            - Do not invent causes for changes unless the provided data supports them.
+
+            3. Growth Opportunities
+            - Identify areas showing strong performance.
+            - Identify products, regions, or other dimensions that may represent
+              opportunities for growth.
+            - Base these observations only on the provided data.
+
+            4. Business Recommendations
+            - Provide practical recommendations based on the actual metrics and forecast.
+            - Recommendations must be supported by the provided data.
+            - Do not invent business facts or external information.
+
+            Rules:
+            1. Use only the provided Sales Intelligence metrics and forecast.
+            2. Do not invent or change any numbers.
+            3. Do not assume information that is not present.
+            4. If a metric is unavailable, do not fabricate it.
+            5. Clearly distinguish calculated historical metrics from model-based forecasts.
+            6. Keep the response concise but useful.
+            7. Use clear headings and bullet points where appropriate.
+            8. Do not convert revenue forecasts into inventory, quantity,
+            staffing, or financial recommendations unless the required
+            data for that recommendation is explicitly available.
+            9. Do not treat forecast confidence bounds as inventory,
+            safety-stock, or guaranteed revenue requirements.
+            10. Every recommendation must be directly supported by the
+            provided Sales Intelligence metrics or forecast.
+            11. Clearly distinguish between revenue values, quantities,
+            percentages, and forecast confidence bounds.
+            12. Do not infer causes for sales performance, product performance,
+            or regional performance unless the provided dataset contains evidence supporting that cause.
+
+            13. Do not recommend inventory increases, safety stock, stock levels,
+                supply quantities, staffing levels, or financial commitments unless
+                the dataset contains the required information to support that
+                recommendation.
+
+            14. A sales or revenue forecast represents expected monetary sales.
+                Do not interpret forecast values as inventory requirements,
+                product quantities, or stock levels.
+
+            15. Do not use forecast confidence intervals to determine inventory,
+                safety stock, or supply requirements.
+
+            16. Recommendations should focus on actions that can reasonably be
+                supported by the available sales metrics, product performance,
+                regional performance, and forecast.
+
+            17. When the data only shows that a product or region is performing
+                strongly or weakly, recommend investigating, prioritizing,
+                evaluating, or improving that area rather than assuming the
+                underlying cause.
+                """,
+                input_variables=[
+                    "question",
+                    "sales_metrics",
+                    "forecast_result"
+                    ]
+                    )
+
+            # Create final Business Insights chain
+
+        final_chain= final_prompt | llm | parser
+
+        final_response=final_chain.invoke({
+            "question":question,
+            "sales_metrics":sales_metrics,
+            "forecast_result":forecast_result
+        })
+
+            # Return final business insights
+        return final_response
