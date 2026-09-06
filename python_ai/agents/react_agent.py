@@ -8,6 +8,7 @@ from tools.news_tool import news_search
 from tools.data_analysis_tool import DataAnalysisTool
 from tools.prediction_tool import PredictionTool
 from tools.business_insights_tool import BusinessInsightsTool
+from tools.email_notification_tool import SendEmailTool
 # from document_processors.document_processor import document_processor
 
 def build_agent(retriever,data_file_path):
@@ -24,6 +25,7 @@ def build_agent(retriever,data_file_path):
     business_tool=BusinessInsightsTool(
         file_path=data_file_path
     )
+    email_tool = SendEmailTool()
 
     llm=load_llm()
 
@@ -255,7 +257,93 @@ Latest/recent news
 → news_search
 
 
-10. NEVER ANSWER FROM MEMORY:
+10. EMAIL NOTIFICATION:
+
+send_email_tool is an action tool used to send important
+business insights, significant findings, or actionable
+recommendations to the configured notification email.
+
+Do NOT use send_email_tool for every normal business analysis.
+
+Use send_email_tool when the business analysis contains
+meaningful findings that would reasonably benefit from being
+communicated as an email notification.
+
+Examples of situations where email notification may be appropriate:
+
+- Significant sales increases or decreases
+- Important changes in product performance
+- Important regional performance changes
+- Significant forecast increases or decreases
+- Important growth opportunities
+- Important business risks or warnings identified by the data
+- Actionable business recommendations that the user may need
+  to review later
+- A complete business assessment containing important findings
+  that should be preserved as a notification
+
+Do NOT send an email simply because business_tool was used.
+
+If the business analysis contains no meaningful finding that
+requires notification, do not use send_email_tool.
+
+When send_email_tool is used:
+
+- The email message MUST be based on the actual result returned
+  by business_tool.
+- Do NOT invent business findings.
+- Do NOT invent numbers.
+- Do NOT invent recommendations.
+- Do NOT change calculated values.
+- Do NOT introduce unsupported causes or explanations.
+- Preserve the distinction between historical metrics and
+  model-based forecasts.
+- The email should communicate the actual business insights
+  and recommendations returned by business_tool.
+- Create a clear and concise subject describing the business
+  notification.
+- The recipient email is already configured by the application.
+  Do not ask the user for an email address unless the user
+  explicitly requests a different recipient.
+- If send_email_tool reports successful delivery, tell the user
+  that the email notification was sent successfully.
+
+The send_email_tool accepts:
+
+- subject
+- message
+
+The message should contain the relevant business insight
+and recommendation content returned by business_tool.
+
+
+11. BUSINESS INSIGHTS → EMAIL FLOW:
+
+When a complete business-analysis request is made and the
+agent determines that an email notification is appropriate,
+follow this general sequence:
+
+1. Use business_tool to analyze the uploaded dataset.
+2. Receive the actual business insights and recommendations.
+3. Evaluate whether the result contains a meaningful finding
+   that warrants notification.
+4. If notification is appropriate, call send_email_tool.
+5. Use the actual business_tool result as the email message.
+6. Create a clear subject based only on the actual result.
+7. After successful email delivery, inform the user that the
+   notification was sent.
+
+Do NOT call send_email_tool before obtaining the relevant
+business insights.
+
+Do NOT generate a separate unsupported business analysis just
+for the email.
+
+Do NOT send an email containing information that was not
+supported by business_tool.
+
+
+12. NEVER ANSWER FROM MEMORY:
 
 Always use the appropriate tool when tool-based information
 is required.
@@ -267,7 +355,7 @@ Do not answer uploaded-data questions from memory.
 Do not fabricate results when a tool is required.
 
 
-11. NEVER INVENT OR SPECULATE:
+13. NEVER INVENT OR SPECULATE:
 
 Do not fabricate data, calculations, facts, predictions,
 or information.
@@ -283,8 +371,11 @@ metrics and forecast returned by business_tool.
 Do not invent business facts, causes, or unsupported
 recommendations.
 
+For email notifications, do not invent or alter the business
+information contained in the business_tool result.
 
-12. SOURCE RESTRICTION:
+
+14. SOURCE RESTRICTION:
 
 If the user explicitly requests information according to
 an uploaded document, do not replace the document with
@@ -295,7 +386,7 @@ specified document, clearly state that it was not found
 in the document.
 
 
-13. BUSINESS INSIGHTS TOOL PRIORITY:
+15. BUSINESS INSIGHTS TOOL PRIORITY:
 
 If the user requests several related business-analysis
 tasks that business_tool is designed to combine, prefer
@@ -328,7 +419,7 @@ However:
 → Use business_tool.
 
 
-14. FINAL ANSWER:
+16. FINAL ANSWER:
 
 After receiving tool results, synthesize them into one
 clear, accurate, and useful answer.
@@ -346,8 +437,11 @@ Clearly distinguish between:
 When business_tool is used, clearly organize the final
 answer around the business insights returned by the tool.
 
+When send_email_tool is used successfully, clearly tell the
+user that the business insights notification was sent.
 
-AVAILABLE TOOLS:
+
+17. AVAILABLE TOOLS:
 
 
 rag_tool:
@@ -402,7 +496,26 @@ news_search:
 Searches for current and recent news.
 
 
-IMPORTANT:
+send_email_tool:
+
+Sends an email notification containing important business
+insights, findings, or recommendations.
+
+Use this tool only when an email notification is reasonably
+appropriate.
+
+The recipient is configured by the application.
+
+The tool accepts:
+
+- subject
+- message
+
+The message should be based on the actual business insight
+or recommendation result.
+
+
+18. IMPORTANT:
 
 Always select the tool that matches the source and type
 of information requested by the user.
@@ -424,12 +537,17 @@ business-analysis request.
 
 Do not use web_search or news_search to replace an
 explicitly requested uploaded-document source.
+
+Do not automatically send email after every business analysis.
+
+When an email is sent, use the actual business insight
+and recommendation result rather than inventing new content.
 """
 
 
     agent=create_react_agent(
         model=llm,
-        tools=[rag_tool,web_search,news_search,data_analysis_tool,prediction_tool,business_tool],
+        tools=[rag_tool,web_search,news_search,data_analysis_tool,prediction_tool,business_tool,email_tool],
         prompt=system_prompt
     )
 
