@@ -1,4 +1,6 @@
 from tools.business_insights_tool import BusinessInsightsTool
+from services.business_analysis_service import BusinessAnalysisService
+from utils.report_generator import create_report
 
 
 data_file_path = "./../docs/Business_Sales_Forecasting_Test_Data.xlsx"
@@ -6,6 +8,8 @@ data_file_path = "./../docs/Business_Sales_Forecasting_Test_Data.xlsx"
 business_insights_tool = BusinessInsightsTool(
     file_path=data_file_path
 )
+
+service = BusinessAnalysisService()
 
 
 while True:
@@ -15,9 +19,28 @@ while True:
     if question.lower() == "exit":
         break
 
-    result = business_insights_tool.invoke(
+    analysis_result = service.analyze(
+        data_file_path,
         question
+    )
+
+    print("\nSTRUCTURED BUSINESS ANALYSIS:\n")
+    print(analysis_result)
+
+    if isinstance(analysis_result, str):
+        continue
+
+    result = service.generate_response(
+        question,
+        analysis_result
     )
 
     print("\nBUSINESS INSIGHTS:\n")
     print(result)
+
+    create_report(
+        "businesssample_report.pdf",
+        analysis_result
+    )
+
+    print("\nPDF REPORT GENERATED: businesssample_report.pdf")
