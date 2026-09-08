@@ -1,6 +1,7 @@
 from tools.business_insights_tool import BusinessInsightsTool
 from services.business_analysis_service import BusinessAnalysisService
-from utils.report_generator import create_report
+from utils.report_generator import create_report,find_chart_data
+
 
 
 data_file_path = "./../docs/Business_Sales_Forecasting_Test_Data.xlsx"
@@ -23,7 +24,6 @@ while True:
         data_file_path,
         question
     )
-
     print("\nSTRUCTURED BUSINESS ANALYSIS:\n")
     print(analysis_result)
 
@@ -38,9 +38,16 @@ while True:
     print("\nBUSINESS INSIGHTS:\n")
     print(result)
 
+    chart_data=find_chart_data(
+        analysis_result["sales_metrics"]
+    )
+    print("\nCHART DATA:\n")
+    print(chart_data)
+
     create_report(
-        "businesssample_report.pdf",
+        "reportBusiness.pdf",
         analysis_result
     )
-
     print("\nPDF REPORT GENERATED: businesssample_report.pdf")
+
+    
