@@ -9,6 +9,7 @@ from tools.data_analysis_tool import DataAnalysisTool
 from tools.prediction_tool import PredictionTool
 from tools.business_insights_tool import BusinessInsightsTool
 from tools.email_notification_tool import SendEmailTool
+from tools.report_tool import ReportGenerationTool
 # from document_processors.document_processor import document_processor
 
 def build_agent(retriever,data_file_path):
@@ -26,6 +27,10 @@ def build_agent(retriever,data_file_path):
         file_path=data_file_path
     )
     email_tool = SendEmailTool()
+
+    report_tool=ReportGenerationTool(
+      output_path="BusinessFileReport.pdf"
+    )
 
     llm=load_llm()
 
@@ -342,8 +347,66 @@ for the email.
 Do NOT send an email containing information that was not
 supported by business_tool.
 
+12. PDF REPORT GENERATION:
 
-12. NEVER ANSWER FROM MEMORY:
+If the user explicitly asks to generate, create, export,
+download, or produce a PDF report from the uploaded CSV
+or Excel business analysis, use report_tool.
+
+Examples:
+
+- "Generate a PDF report."
+- "Create a business report."
+- "Export this analysis as a PDF."
+- "Create a PDF containing the business insights."
+- "Generate a report with tables, charts, and forecast."
+- "Give me the complete analysis as a PDF."
+
+When generating a PDF report from a complete business analysis:
+
+1. First use business_tool to analyze the uploaded dataset.
+2. Receive the result returned by business_tool.
+3. Extract/use the structured "analysis_result" from that result.
+4. Pass that same "analysis_result" to report_tool.
+5. Do not run the business analysis again.
+6. Do not independently calculate or modify the analysis for
+   the report.
+7. The PDF must be generated from the actual structured
+   analysis returned by business_tool.
+
+The report_tool is responsible only for generating the PDF
+from the provided structured analysis result.
+
+Do NOT use report_tool for normal questions that do not
+request a PDF report.
+
+Do NOT call business_tool a second time just to generate
+the PDF.
+
+Do NOT invent, modify, recalculate, or replace values in
+the analysis_result before passing it to report_tool.
+
+Preserve the distinction between:
+
+- historical/actual data
+- calculated business metrics
+- model-based forecasts
+
+If the user asks for both business insights and a PDF report,
+use business_tool first and then use the same analysis_result
+with report_tool.
+
+The intended flow is:
+
+business_tool
+    ↓
+analysis_result
+    ↓
+report_tool
+    ↓
+PDF report
+
+13. NEVER ANSWER FROM MEMORY:
 
 Always use the appropriate tool when tool-based information
 is required.
@@ -355,7 +418,7 @@ Do not answer uploaded-data questions from memory.
 Do not fabricate results when a tool is required.
 
 
-13. NEVER INVENT OR SPECULATE:
+14. NEVER INVENT OR SPECULATE:
 
 Do not fabricate data, calculations, facts, predictions,
 or information.
@@ -375,7 +438,7 @@ For email notifications, do not invent or alter the business
 information contained in the business_tool result.
 
 
-14. SOURCE RESTRICTION:
+15. SOURCE RESTRICTION:
 
 If the user explicitly requests information according to
 an uploaded document, do not replace the document with
@@ -386,7 +449,7 @@ specified document, clearly state that it was not found
 in the document.
 
 
-15. BUSINESS INSIGHTS TOOL PRIORITY:
+16. BUSINESS INSIGHTS TOOL PRIORITY:
 
 If the user requests several related business-analysis
 tasks that business_tool is designed to combine, prefer
@@ -419,7 +482,7 @@ However:
 → Use business_tool.
 
 
-16. FINAL ANSWER:
+17. FINAL ANSWER:
 
 After receiving tool results, synthesize them into one
 clear, accurate, and useful answer.
@@ -441,7 +504,7 @@ When send_email_tool is used successfully, clearly tell the
 user that the business insights notification was sent.
 
 
-17. AVAILABLE TOOLS:
+18. AVAILABLE TOOLS:
 
 
 rag_tool:
@@ -514,8 +577,29 @@ The tool accepts:
 The message should be based on the actual business insight
 or recommendation result.
 
+report_tool:
 
-18. IMPORTANT:
+Generates a professional PDF business intelligence report
+from the structured analysis result produced by business_tool.
+
+Use this tool when the user explicitly requests a PDF
+business report or wants the business analysis exported
+as a PDF.
+
+The report contains the actual business analysis, including
+available sales intelligence, tables, charts, and forecast
+information.
+
+The report_tool must receive the "analysis_result" returned
+by business_tool.
+
+Do not run business analysis again before generating the
+report.
+
+Do not modify or invent any analysis data.
+
+
+19. IMPORTANT:
 
 Always select the tool that matches the source and type
 of information requested by the user.
@@ -547,7 +631,7 @@ and recommendation result rather than inventing new content.
 
     agent=create_react_agent(
         model=llm,
-        tools=[rag_tool,web_search,news_search,data_analysis_tool,prediction_tool,business_tool,email_tool],
+        tools=[rag_tool,web_search,news_search,data_analysis_tool,prediction_tool,business_tool,email_tool,report_tool],
         prompt=system_prompt
     )
 

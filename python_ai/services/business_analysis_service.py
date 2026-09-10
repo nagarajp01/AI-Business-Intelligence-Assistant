@@ -107,17 +107,24 @@ Rules:
 7. Return only executable Python code.
 8. Do not include Markdown code fences.
 9. Do not explain the code.
-10. The final expression MUST return a Python dictionary.
-11. Use clear metric names as dictionary keys.
-12. If calculating growth rate, calculate the growth from the first
+10. Create a Python variable named `sales_metrics`.
+11. `sales_metrics` MUST contain a Python dictionary.
+12. Use clear metric names as dictionary keys.
+13. The LAST LINE of the generated code MUST be exactly:
+sales_metrics
+
+14. The final execution result MUST therefore be the `sales_metrics` dictionary.
+
+15. If calculating growth rate, calculate the growth from the first
 recorded date to the last recorded date:
 
 ((last sales - first sales) / first sales) * 100
 
-Use the metric name:
+16. Use the metric name:
+
 first_to_last_day_growth_rate
 
-Do not call this simply "growth rate".
+17. Do not call this simply "growth rate".
 """,
             input_variables=[
                 "question",
@@ -133,6 +140,8 @@ Do not call this simply "growth rate".
             "columns": columns,
             "llm_columns": columns_identified
         })
+        print("\nGENERATED PANDAS CODE:\n")
+        print(pandas_code)
 
         python_tool = PythonAstREPLTool(
             locals={
@@ -142,6 +151,15 @@ Do not call this simply "growth rate".
         )
 
         sales_metrics = python_tool.invoke(pandas_code)
+        print("\nSALES METRICS TYPE:")
+        print(type(sales_metrics))
+        print("\nSALES METRICS VALUE:")
+        print(sales_metrics)
+        if not isinstance(sales_metrics, dict):
+            raise ValueError(
+                "Sales analysis failed: generated Python code "
+                "did not return a dictionary."
+            )
 
         prediction_tool = PredictionTool(
             file_path=file_path

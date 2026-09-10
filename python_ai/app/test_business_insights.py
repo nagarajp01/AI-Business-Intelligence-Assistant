@@ -45,9 +45,10 @@ while True:
     print(chart_data)
 
     create_report(
-        "reportBusiness.pdf",
+        "finalBusinessReport.pdf",
         analysis_result
     )
     print("\nPDF REPORT GENERATED: businesssample_report.pdf")
+
 
     

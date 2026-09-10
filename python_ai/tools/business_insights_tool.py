@@ -34,4 +34,7 @@ class BusinessInsightsTool(BaseTool):
             analysis_result
         )
 
-        return final_response
+        return {
+            "analysis_result": analysis_result,
+            "final_response": final_response
+        }
