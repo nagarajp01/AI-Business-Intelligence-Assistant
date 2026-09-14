@@ -59,6 +59,11 @@ class BusinessInsightsTool(BaseTool):
             self.file_path,
             question
         )
+        print("\nANALYSIS RESULT TYPE:")
+        print(type(analysis_result))
+
+        print("\nANALYSIS RESULT:")
+        print(analysis_result)
 
         # Step 2: Generate the natural-language business response
         final_response = service.generate_response(

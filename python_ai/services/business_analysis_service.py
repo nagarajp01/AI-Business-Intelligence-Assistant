@@ -140,8 +140,8 @@ first_to_last_day_growth_rate
             "columns": columns,
             "llm_columns": columns_identified
         })
-        print("\nGENERATED PANDAS CODE:\n")
-        print(pandas_code)
+        # print("\nGENERATED PANDAS CODE:\n")
+        # print(pandas_code)
 
         python_tool = PythonAstREPLTool(
             locals={
@@ -151,10 +151,12 @@ first_to_last_day_growth_rate
         )
 
         sales_metrics = python_tool.invoke(pandas_code)
-        print("\nSALES METRICS TYPE:")
-        print(type(sales_metrics))
-        print("\nSALES METRICS VALUE:")
-        print(sales_metrics)
+        # print("\nSALES METRICS TYPE:")
+        # print(type(sales_metrics))
+        # print("\nSALES METRICS VALUE:")
+        # print(sales_metrics)
+        print("TYPE:", type(sales_metrics))
+        print("VALUE:", sales_metrics)
         if not isinstance(sales_metrics, dict):
             raise ValueError(
                 "Sales analysis failed: generated Python code "
