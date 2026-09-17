@@ -1,5 +1,6 @@
 import express from "express"
 import aiRoutes from "./routes/aiRoutes.js";
+import uploadRoutes from "./routes/uploadRoutes.js"
 
 // const express=require("express");
 
@@ -9,6 +10,7 @@ const PORT=5000;
 app.use(express.json());
 
 app.use("/api",aiRoutes)
+app.use("/api",uploadRoutes)
 
 app.get("/",(req,res)=>{
     res.json({
