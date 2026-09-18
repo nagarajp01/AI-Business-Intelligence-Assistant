@@ -1,7 +1,5 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from document_processors.document_processor import document_processor
-from agents.react_agent import build_agent
 import uuid
 
 app=FastAPI()
@@ -32,6 +30,8 @@ class ProcessRequest(BaseModel):
 
 #Creating the processing resources for a workspace.
 def workspace_processing(document_pdf,excel_file):
+    from document_processors.document_processor import document_processor
+    from agents.react_agent import build_agent
     file_path=document_pdf
     data_file_path=excel_file
     retriever=document_processor(file_path)
