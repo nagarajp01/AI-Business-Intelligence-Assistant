@@ -1,6 +1,6 @@
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 # from loaders.pdf_loader import load_pdf
 def split_documents(documents):
+    from langchain_text_splitters import RecursiveCharacterTextSplitter
     splitter=RecursiveCharacterTextSplitter(
         chunk_size=1000,
         chunk_overlap=200

@@ -9,18 +9,27 @@ from tools.prediction_tool import PredictionTool
 
 class BusinessAnalysisService:
 
-    def analyze(self, file_path: str, question: str):
+    # Main analysis function
 
+    def analyze(self, file_path: str, question: str):
+        # Load dataset
         if file_path.endswith(".xlsx"):
+
             df = pd.read_excel(file_path)
 
         elif file_path.endswith(".csv"):
+
             df = pd.read_csv(file_path)
 
         else:
+
             return "Unsupported file"
 
         columns = list(df.columns)
+
+        llm = load_llm()
+        parser = StrOutputParser()
+        # Identify relevant columns
 
         prompt1 = PromptTemplate(
             template="""
@@ -55,9 +64,6 @@ Do not include explanations.
             input_variables=["question", "columns"]
         )
 
-        llm = load_llm()
-        parser = StrOutputParser()
-
         column_chain = prompt1 | llm | parser
 
         columns_identified = column_chain.invoke({
@@ -69,6 +75,7 @@ Do not include explanations.
             column.strip()
             for column in columns_identified.split(",")
         ]
+        # Validate identified columns
 
         invalid_columns = [
             column
@@ -77,7 +84,138 @@ Do not include explanations.
         ]
 
         if invalid_columns:
+
             return f"Invalid columns identified: {invalid_columns}"
+
+        # Generate Pandas code
+
+        pandas_code = self.generate_pandas_code(
+            question=question,
+            columns=columns,
+            columns_identified=columns_identified,
+            llm=llm,
+            parser=parser
+        )
+
+        # Execute generated Pandas code
+
+        sales_metrics = self.execute_pandas_code(
+            pandas_code=pandas_code,
+            df=df
+        )
+        # If execution fails, ask LLM to correct the code
+
+        if not isinstance(sales_metrics, dict):
+
+            correction_prompt = PromptTemplate(
+                template="""
+You are a Python debugging assistant.
+
+The following Python code was generated to analyze a Pandas DataFrame.
+
+Generated code:
+{pandas_code}
+
+The code failed during execution.
+
+Execution result or error:
+{execution_error}
+
+The available DataFrame columns are:
+{columns}
+
+The user asked:
+{question}
+
+Correct the Python code.
+
+Rules:
+
+1. Use the existing DataFrame named `df`.
+2. Do not load the file again.
+3. Do not create fake or sample data.
+4. Use only columns that actually exist in the DataFrame.
+5. Perform the actual calculations using Pandas.
+6. Create a variable named `sales_metrics`.
+7. `sales_metrics` MUST contain a Python dictionary.
+8. The LAST LINE of the generated code MUST be exactly:
+
+sales_metrics
+
+9. Return ONLY executable Python code.
+10. Do not include Markdown code fences.
+11. Do not explain the code.
+""",
+                input_variables=[
+                    "pandas_code",
+                    "execution_error",
+                    "columns",
+                    "question"
+                ]
+            )
+
+            correction_chain = correction_prompt | llm | parser
+
+            corrected_code = correction_chain.invoke({
+                "pandas_code": pandas_code,
+                "execution_error": sales_metrics,
+                "columns": columns,
+                "question": question
+            })
+
+            print("\n========== CORRECTED PANDAS CODE ==========")
+            print(corrected_code)
+            print("============================================\n")
+
+            sales_metrics = self.execute_pandas_code(
+                pandas_code=corrected_code,
+                df=df
+            )
+        # Final validation
+
+        if not isinstance(sales_metrics, dict):
+
+            raise ValueError(
+                "Sales analysis failed: generated Python code "
+                "did not return a dictionary."
+            )
+
+        print("\n========== SALES METRICS ==========")
+        print("TYPE:", type(sales_metrics))
+        print("VALUE:", sales_metrics)
+        print("===================================\n")
+
+        # Prediction / Forecasting
+
+        prediction_tool = PredictionTool(
+            file_path=file_path
+        )
+
+        forecast_result = prediction_tool.get_forecast(
+            question
+        )
+
+        if isinstance(forecast_result, str):
+
+            return forecast_result
+
+        # Return complete analysis result
+
+        return {
+            "sales_metrics": sales_metrics,
+            "forecast_result": forecast_result
+        }
+
+    # Generate Pandas code
+
+    def generate_pandas_code(
+        self,
+        question,
+        columns,
+        columns_identified,
+        llm,
+        parser
+    ):
 
         prompt2 = PromptTemplate(
             template="""
@@ -98,6 +236,7 @@ Generate Python code using Pandas to calculate the Sales Intelligence metrics
 that can be determined from the available data.
 
 Rules:
+
 1. Use the existing DataFrame `df`.
 2. Do not create fake or sample data.
 3. Do not load the file again.
@@ -111,10 +250,10 @@ Rules:
 11. `sales_metrics` MUST contain a Python dictionary.
 12. Use clear metric names as dictionary keys.
 13. The LAST LINE of the generated code MUST be exactly:
+
 sales_metrics
 
 14. The final execution result MUST therefore be the `sales_metrics` dictionary.
-
 15. If calculating growth rate, calculate the growth from the first
 recorded date to the last recorded date:
 
@@ -140,44 +279,43 @@ first_to_last_day_growth_rate
             "columns": columns,
             "llm_columns": columns_identified
         })
-        # print("\nGENERATED PANDAS CODE:\n")
-        # print(pandas_code)
 
-        python_tool = PythonAstREPLTool(
-            locals={
-                "df": df,
-                "pd": pd
-            }
-        )
+        print("\n========== GENERATED PANDAS CODE ==========")
+        print(pandas_code)
+        print("===========================================\n")
 
-        sales_metrics = python_tool.invoke(pandas_code)
-        # print("\nSALES METRICS TYPE:")
-        # print(type(sales_metrics))
-        # print("\nSALES METRICS VALUE:")
-        # print(sales_metrics)
-        print("TYPE:", type(sales_metrics))
-        print("VALUE:", sales_metrics)
-        if not isinstance(sales_metrics, dict):
-            raise ValueError(
-                "Sales analysis failed: generated Python code "
-                "did not return a dictionary."
+        return pandas_code
+    # Execute Pandas code
+
+    def execute_pandas_code(
+        self,
+        pandas_code,
+        df
+    ):
+
+        try:
+
+            python_tool = PythonAstREPLTool(
+                locals={
+                    "df": df,
+                    "pd": pd
+                }
             )
 
-        prediction_tool = PredictionTool(
-            file_path=file_path
-        )
+            result = python_tool.invoke(
+                pandas_code
+            )
 
-        forecast_result = prediction_tool.get_forecast(
-            question
-        )
+            return result
 
-        if isinstance(forecast_result, str):
-            return forecast_result
+        except Exception as error:
 
-        return {
-            "sales_metrics": sales_metrics,
-            "forecast_result": forecast_result
-        }
+            print("\n========== PANDAS EXECUTION ERROR ==========")
+            print(error)
+            print("=============================================\n")
+
+            return f"Execution error: {error}"
+    # Generate final business response
 
     def generate_response(
         self,
@@ -186,6 +324,7 @@ first_to_last_day_growth_rate
     ):
 
         if isinstance(analysis_result, str):
+
             return analysis_result
 
         llm = load_llm()
@@ -261,7 +400,7 @@ first_to_last_day_growth_rate
             13. Do not recommend inventory increases, safety stock,
                 stock levels, supply quantities, staffing levels, or
                 financial commitments unless the dataset contains the
-                required information to support that recommendation.
+                required information to support such recommendations.
 
             14. A sales or revenue forecast represents expected monetary
                 sales. Do not interpret forecast values as inventory
@@ -278,6 +417,28 @@ first_to_last_day_growth_rate
                 performing strongly or weakly, recommend investigating,
                 prioritizing, evaluating, or improving that area rather
                 than assuming the underlying cause.
+            18. Every factual statement in the response MUST be directly
+                supported by a value, metric, category, or result present in
+                sales_metrics or forecast_result.
+
+            19. Do not mention any metric, attribute, measurement, or business
+            factor unless it is present in sales_metrics or forecast_result.
+
+            20. Do not invent information such as customer satisfaction,
+            customer reviews, product quality, market demand, or other factors
+            unless that information is explicitly present in the provided data.
+
+            21. When the user asks which product performed best, determine the
+            answer only from the available product metrics such as
+            revenue_by_product or profit_by_product.
+
+            22. Clearly state the metric used when identifying the best or
+            worst product, region, sales channel, sales representative, or
+            customer segment.
+            
+            23. If the available data does not contain enough information to
+            answer a question, say that the required metric is not available
+            instead of guessing.
             """,
             input_variables=[
                 "question",
