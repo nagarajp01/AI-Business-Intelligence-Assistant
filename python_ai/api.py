@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import uuid
 import time
@@ -87,33 +87,103 @@ def home():
         "message":"AI Business Intelligence API is running"
     }
 
-@app.post("/process")
-def process(request:ProcessRequest):
-    agent=workspace_processing(request.document_pdf,request.excel_file)
-    workspace_id = str(uuid.uuid4())
-    workspaces[workspace_id]=agent
 
-    return {
-        "workspace_id":workspace_id,
-        "message":"Files processed successfully"
-    }
+@app.post("/process")
+def process(request: ProcessRequest):
+    try:
+        agent = workspace_processing(
+            request.document_pdf,
+            request.excel_file
+        )
+
+        workspace_id = str(uuid.uuid4())
+        workspaces[workspace_id] = agent
+
+        return {
+            "workspace_id": workspace_id,
+            "message": "Files processed successfully"
+        }
+
+    except Exception as error:
+        print(f"Workspace processing failed: {error}")
+
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to process uploaded files."
+        ) from error
+
+# def process(request:ProcessRequest):
+#     agent=workspace_processing(request.document_pdf,request.excel_file)
+#     workspace_id = str(uuid.uuid4())
+#     workspaces[workspace_id]=agent
+
+#     return {
+#         "workspace_id":workspace_id,
+#         "message":"Files processed successfully"
+#     }
+
 
 @app.post("/ask")
-def ask_question(request:QuestionRequest):
-    if request.workspace_id not in workspaces:
-        return {
-            "error":"workspace id doesnt exist,please try again"
-        }
+def ask_question(request: QuestionRequest):
     agent = workspaces.get(request.workspace_id)
-    response=agent.invoke({
-        "messages":[
-            {
-                "role":"user",
-                "content":request.question
-            }
-        ]
-    })
 
-    return {
-        "answer":response["messages"][-1].content
-    }
+    if agent is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace not found. Please upload your files again."
+        )
+
+    try:
+        response = agent.invoke(
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": request.question
+                    }
+                ]
+            },
+            config={
+                "configurable": {
+                    "thread_id": request.workspace_id
+                }
+            }
+        )
+
+        return {
+            "answer": response["messages"][-1].content
+        }
+
+    except Exception as error:
+        print(f"Question processing failed: {error}")
+
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to process your question."
+        ) from error
+
+
+# @app.post("/ask")
+# def ask_question(request:QuestionRequest):
+#     if request.workspace_id not in workspaces:
+#         return {
+#             "error":"workspace id doesnt exist,please try again"
+#         }
+#     agent = workspaces.get(request.workspace_id)
+#     response=agent.invoke({
+#         "messages":[
+#             {
+#                 "role":"user",
+#                 "content":request.question
+#             }
+#         ]
+#     },
+#     config={
+#         "configurable":{
+#             "thread_id":request.workspace_id
+#         }
+#     })
+
+#     return {
+#         "answer":response["messages"][-1].content
+#     }

@@ -11,6 +11,8 @@ from tools.business_insights_tool import BusinessInsightsTool
 from tools.email_notification_tool import SendEmailTool
 # from tools.report_tool import ReportGenerationTool
 # from document_processors.document_processor import document_processor
+from langgraph.checkpoint.memory import MemorySaver
+
 
 def build_agent(retriever,data_file_path):
     rag_tool=RAGTool(
@@ -33,6 +35,7 @@ def build_agent(retriever,data_file_path):
     # )
 
     llm=load_llm()
+    checkpointer = MemorySaver()
 
     system_prompt = """
 You are an AI Business Intelligence and Research Assistant.
@@ -669,7 +672,8 @@ and recommendation result rather than inventing new content.
     agent=create_react_agent(
         model=llm,
         tools=[rag_tool,web_search,news_search,data_analysis_tool,prediction_tool,business_tool,email_tool],
-        prompt=system_prompt
+        prompt=system_prompt,
+        checkpointer=checkpointer
     )
 
     # agent=create_agent(

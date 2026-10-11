@@ -1,38 +1,38 @@
-from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import PDFPlumberLoader
+
 def load_pdf(file_path):
-
-    loader = PyPDFLoader(file_path)
-
-    documents = loader.load()
-
+    loader=PDFPlumberLoader(file_path)
+    documents=loader.load()
     return documents
 
-if __name__ == "__main__":
 
-    path = input("enter the pdf path")
-
-    documents = load_pdf(path)
-
+if __name__=="__main__":
+    path=input("enter the pdf path")
+    documents=load_pdf(path)
+    # print(documents)
     print(len(documents))
 
 
 
-
-
-
-# from langchain_community.document_loaders import PDFPlumberLoader
-
+# from langchain_community.document_loaders import PyPDFLoader
 # def load_pdf(file_path):
-#     loader=PDFPlumberLoader(file_path)
-#     documents=loader.load()
+
+#     loader = PyPDFLoader(file_path)
+
+#     documents = loader.load()
+
 #     return documents
 
+# if __name__ == "__main__":
 
-# if __name__=="__main__":
-#     path=input("enter the pdf path")
-#     documents=load_pdf(path)
-#     # print(documents)
+#     path = input("enter the pdf path")
+
+#     documents = load_pdf(path)
+
 #     print(len(documents))
+
+
+
 
 
 
