@@ -19,9 +19,25 @@ app.get("/",(req,res)=>{
     res.json({
         message:"Express backend is running"
     })
-})
+});
+// Handle unknown routes
+app.use((req, res) => {
+    res.status(404).json({
+        message: "Route not found"
+    });
+});
+// Handle unexpected server errors
+app.use((err, req, res, next) => {
+    console.error("Express server error:", err.message);
 
+    if (res.headersSent) {
+        return next(err);
+    }
 
+    res.status(500).json({
+        message: "Internal server error"
+    });
+});
 app.listen(PORT,()=>{
     console.log(`Express server running on http://localhost:${PORT}`)
 })
