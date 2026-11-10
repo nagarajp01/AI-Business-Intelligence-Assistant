@@ -1,0 +1,74 @@
+
+.sidebar {
+    width: 270px;
+    height: 100vh;
+    padding: 20px;
+    box-sizing: border-box;
+    transition: width 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+}
+
+.sidebar.collapsed {
+    width: 75px;
+}
+
+.light-theme .sidebar {
+    /* background-color: #f5f5f5; */
+    background-color: #3e313166;
+    color: #222222;
+    border-right: 1px solid #dddddd;
+}
+
+.dark-theme .sidebar {
+    background-color: #252525;
+    color: #ffffff;
+    border-right: 1px solid #444444;
+}
+
+.sidebar-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 25px;
+}
+.sidebar.collapsed .sidebar-header {
+    flex-direction: column;
+    align-items: center;
+}
+
+.sidebar.collapsed .sidebar-header h3 {
+    display: none;
+}
+
+.sidebar button {
+    padding: 10px;
+    margin-bottom: 12px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+}
+
+.light-theme .sidebar button {
+    background-color: #e5e5e5;
+    color: #222222;
+}
+
+.dark-theme .sidebar button {
+    background-color: #3a3a3a;
+    color: #ffffff;
+}
+
+.sidebar button:hover {
+    opacity: 0.8;
+}
+
+.uploaded_documents {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 15px 0;
+    font-size: 14px;
+}
