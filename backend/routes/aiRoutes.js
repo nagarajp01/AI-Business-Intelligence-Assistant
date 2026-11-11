@@ -11,10 +11,17 @@ router.route("/ask").post(
                 workspace_id: req.body.workspace_id
             },
             {
-                timeout:600000
+                timeout:600000,
+                responseType:"stream"
             }
         );
-        return res.json(response.data);
+        // return res.json(response.data);
+        res.setHeader(
+            "Content-Type",
+            response.headers["content-type"] || "text/plain"
+        );
+        res.status(response.status);
+        response.data.pipe(res);
     } catch (error) {
         console.error("AI question processing failed:",error.response?.data || error.message);
         if (error.code === "ECONNREFUSED") {
@@ -41,6 +48,43 @@ router.route("/ask").post(
         }
     }
 );
+
+router.get("/download-report/:workspaceId", async (req, res) => {
+    try {
+        const response = await axios.get(
+            `http://127.0.0.1:8000/download-report/${req.params.workspaceId}`,
+            {
+                responseType: "stream",
+                timeout: 600000
+            }
+        );
+
+        res.setHeader(
+            "Content-Type",
+            "application/pdf"
+        );
+
+        res.setHeader(
+            "Content-Disposition",
+            'attachment; filename="BusinessFileReport.pdf"'
+        );
+
+        response.data.pipe(res);
+
+    } catch (error) {
+        console.error("PDF download failed:", error.message);
+
+        if (error.response) {
+            return res.status(error.response.status).json({
+                message: "Failed to download PDF report."
+            });
+        }
+
+        return res.status(502).json({
+            message: "Unable to communicate with AI service."
+        });
+    }
+});
 
 export default router;
 

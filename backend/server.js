@@ -4,10 +4,14 @@ import aiRoutes from "./routes/aiRoutes.js";
 console.log("2. aiRoutes imported");
 import uploadRoutes from "./routes/uploadRoutes.js"
 console.log("3. uploadRoutes imported");
+import cors from "cors";
 // const express=require("express");
 
 const app=express();
 console.log("4. Express app created");
+app.use(cors({
+    origin: "http://localhost:5173"
+}));
 const PORT=5000;
 app.use(express.json());
 console.log("5. JSON middleware added");

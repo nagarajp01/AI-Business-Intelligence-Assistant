@@ -1,4 +1,6 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse, FileResponse
+from pathlib import Path
 from pydantic import BaseModel
 import uuid
 import time
@@ -122,9 +124,39 @@ def process(request: ProcessRequest):
 #         "message":"Files processed successfully"
 #     }
 
+# for message streaming ui,modifying it
+async def stream_agent_response(agent, question, workspace_id):
+    try:
+        async for message_chunk, metadata in agent.astream(
+            {
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": question
+                    }
+                ]
+            },
+            config={
+                "configurable": {
+                    "thread_id": workspace_id
+                }
+            },
+            stream_mode="messages"
+        ):
+
+            if metadata.get("langgraph_node") == "agent":
+                content = message_chunk.content
+
+                if isinstance(content, str) and content:
+                    yield content
+
+    except Exception as error:
+        print(f"Streaming failed: {error}")
+        yield "\nSomething went wrong while generating the response. Please try again."
 
 @app.post("/ask")
-def ask_question(request: QuestionRequest):
+async def ask_question(request: QuestionRequest):
+
     agent = workspaces.get(request.workspace_id)
 
     if agent is None:
@@ -133,57 +165,76 @@ def ask_question(request: QuestionRequest):
             detail="Workspace not found. Please upload your files again."
         )
 
-    try:
-        response = agent.invoke(
-            {
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": request.question
-                    }
-                ]
-            },
-            config={
-                "configurable": {
-                    "thread_id": request.workspace_id
-                }
-            }
+    return StreamingResponse(
+        stream_agent_response(
+            agent,
+            request.question,
+            request.workspace_id
+        ),
+        media_type="text/plain"
+    )
+
+@app.get("/download-report/{workspace_id}")
+def download_report(workspace_id: str):
+
+    # Check whether the workspace exists
+    if workspace_id not in workspaces:
+        raise HTTPException(
+            status_code=404,
+            detail="Workspace not found."
         )
 
-        return {
-            "answer": response["messages"][-1].content
-        }
+    # Locate the generated PDF
+    pdf_path = Path.cwd() / "BusinessFileReport.pdf"
 
-    except Exception as error:
-        print(f"Question processing failed: {error}")
-
+    if not pdf_path.exists():
         raise HTTPException(
-            status_code=500,
-            detail="Failed to process your question."
-        ) from error
+            status_code=404,
+            detail="PDF report not found. Generate the report first."
+        )
 
+    return FileResponse(
+        path=pdf_path,
+        media_type="application/pdf",
+        filename="BusinessFileReport.pdf"
+    )
 
 # @app.post("/ask")
-# def ask_question(request:QuestionRequest):
-#     if request.workspace_id not in workspaces:
-#         return {
-#             "error":"workspace id doesnt exist,please try again"
-#         }
+# def ask_question(request: QuestionRequest):
 #     agent = workspaces.get(request.workspace_id)
-#     response=agent.invoke({
-#         "messages":[
-#             {
-#                 "role":"user",
-#                 "content":request.question
-#             }
-#         ]
-#     },
-#     config={
-#         "configurable":{
-#             "thread_id":request.workspace_id
-#         }
-#     })
 
-#     return {
-#         "answer":response["messages"][-1].content
-#     }
+#     if agent is None:
+#         raise HTTPException(
+#             status_code=404,
+#             detail="Workspace not found. Please upload your files again."
+#         )
+
+#     try:
+#         response = agent.invoke(
+#             {
+#                 "messages": [
+#                     {
+#                         "role": "user",
+#                         "content": request.question
+#                     }
+#                 ]
+#             },
+#             config={
+#                 "configurable": {
+#                     "thread_id": request.workspace_id
+#                 }
+#             }
+#         )
+
+#         return {
+#             "answer": response["messages"][-1].content
+#         }
+
+#     except Exception as error:
+#         print(f"Question processing failed: {error}")
+
+#         raise HTTPException(
+#             status_code=500,
+#             detail="Failed to process your question."
+#         ) from error
+
