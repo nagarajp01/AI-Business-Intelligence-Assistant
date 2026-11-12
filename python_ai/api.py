@@ -1,5 +1,7 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.responses import StreamingResponse, FileResponse
+import shutil
+import tempfile
 from pathlib import Path
 from pydantic import BaseModel
 from typing import Optional
@@ -13,9 +15,9 @@ class QuestionRequest(BaseModel):
     workspace_id:str
 
 #processrequest-createsworkspace
-class ProcessRequest(BaseModel):
-    document_pdf:Optional[str]=None
-    excel_file:Optional[str]=None
+# class ProcessRequest(BaseModel):
+#     document_pdf:Optional[str]=None
+#     excel_file:Optional[str]=None
 
     # file_path:str
     # data_file_path:str
@@ -104,21 +106,58 @@ def home():
 
 
 @app.post("/process")
-def process(request: ProcessRequest):
+async def process(
+    document_pdf: Optional[UploadFile] = File(None),
+    excel_file: Optional[UploadFile] = File(None)
+):
     try:
-        if not request.document_pdf and not request.excel_file:
+        if not document_pdf and not excel_file:
             raise HTTPException(
                 status_code=400,
                 detail="Please upload at least one file"
             )
-        # Generate workspace ID before processing
+
         workspace_id = str(uuid.uuid4())
+
+        # Create a separate temporary folder for this workspace
+        workspace_dir = Path(
+            tempfile.mkdtemp(prefix=f"workspace_{workspace_id}_")
+        )
+
+        pdf_path = None
+        excel_path = None
+
+        # Save uploaded PDF
+        if document_pdf:
+            if Path(document_pdf.filename or "").suffix.lower() != ".pdf":
+                raise HTTPException(
+                    status_code=400,
+                    detail="Please upload a valid PDF file."
+                )
+
+            pdf_path = workspace_dir / "document.pdf"
+            pdf_path.write_bytes(await document_pdf.read())
+
+        # Save uploaded Excel/CSV file
+        if excel_file:
+            extension = Path(excel_file.filename or "").suffix.lower()
+
+            if extension not in [".xlsx", ".csv"]:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Only XLSX and CSV files are supported."
+                )
+
+            excel_path = workspace_dir / f"dataset{extension}"
+            excel_path.write_bytes(await excel_file.read())
+
+        # Build the agent using the saved file paths
         agent = workspace_processing(
-            request.document_pdf,
-            request.excel_file,
+            str(pdf_path) if pdf_path else None,
+            str(excel_path) if excel_path else None,
             workspace_id
         )
-        # workspace_id = str(uuid.uuid4())
+
         workspaces[workspace_id] = agent
 
         return {
@@ -128,6 +167,7 @@ def process(request: ProcessRequest):
 
     except HTTPException:
         raise
+
     except Exception as error:
         print(f"Workspace processing failed: {error}")
 
