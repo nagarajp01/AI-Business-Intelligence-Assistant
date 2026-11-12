@@ -13,3 +13,10 @@ pydantic==2.14.1
 python-dotenv==1.2.4
 reportlab==5.1.0
 tavily==1.1.0
+
+# Deployment dependencies
+uvicorn==0.54.0
+chromadb==1.5.9
+sentence-transformers==6.2.0
+openpyxl==3.1.5
+pdfplumber==0.11.10
