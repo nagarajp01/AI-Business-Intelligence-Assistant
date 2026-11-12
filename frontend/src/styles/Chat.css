@@ -73,12 +73,34 @@
     justify-content: flex-end;
     margin-bottom: 15px;
 }
-
 .ai-message {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    margin-bottom: 15px;
+}
+.ai-message a {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background-color: #ec5328;
+    color: white;
+    padding: 10px 16px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-size: 14px;
+    margin-top: 5px;
+}
+
+.ai-message a:hover {
+    background-color: #1d4ed8;
+}
+
+/* .ai-message {
     display: flex;
     justify-content: flex-start;
     margin-bottom: 15px;
-}
+} */
 
 .user-message p {
     background-color: #2563eb;
@@ -87,10 +109,78 @@
     border-radius: 12px;
     max-width: 70%;
 }
-.ai-message p {
+.ai-message > p {
     background-color: #f1f1f1;
     color: #222222;
     padding: 12px 16px;
     border-radius: 12px;
     max-width: 70%;
+}
+
+.markdown-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0;
+}
+
+.markdown-content th,
+.markdown-content td {
+    border: 1px solid #d1d5db;
+    padding: 10px 14px;
+    text-align: left;
+}
+
+.markdown-content th {
+    background-color: #e5e7eb;
+    font-weight: 600;
+}
+
+.markdown-content tr:nth-child(even) {
+    background-color: #f9fafb;
+}
+
+.markdown-content {
+    background-color: #f1f1f1;
+    color: #222222;
+    padding: 16px 20px;
+    border-radius: 12px;
+    max-width: 85%;
+    line-height: 1.6;
+    overflow-x: auto;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3 {
+    margin: 16px 0 10px;
+}
+
+.markdown-content p {
+    margin: 8px 0;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+    padding-left: 25px;
+    margin: 10px 0;
+}
+
+/* Dark mode Markdown */
+.dark-theme .markdown-content {
+    background-color: #2d2d2d;
+    color: #ffffff;
+}
+
+.dark-theme .markdown-content th {
+    background-color: #404040;
+    color: #ffffff;
+}
+
+.dark-theme .markdown-content td {
+    color: #ffffff;
+    border-color: #555555;
+}
+
+.dark-theme .markdown-content tr:nth-child(even) {
+    background-color: #383838;
 }

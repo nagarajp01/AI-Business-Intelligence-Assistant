@@ -36,17 +36,20 @@ router.route("/uploads").post(
             const pdf_filepath = req.files?.document_pdf?.[0]?.path;
             const excel_filepath = req.files?.Excel_Data_sheet?.[0]?.path;
 
-            if (!pdf_filepath || !excel_filepath) {
+            if (!pdf_filepath && !excel_filepath) {
                 return res.status(400).json({
-                    message: "Both a PDF document and an Excel file are required."
+                    message: "Please upload atleast one file (PDF or Excel)"
                 });
             }
-            if (!pdf_filepath.toLowerCase().endsWith(".pdf")) {
+            // Validate PDF only if uploaded
+            if (pdf_filepath && !pdf_filepath.toLowerCase().endsWith(".pdf")) {
                 return res.status(400).json({
                     message: "The document must be a PDF file."
                 });
             }
+            // Validate Excel only if uploaded
             if (
+                excel_filepath &&
                 !excel_filepath.toLowerCase().endsWith(".xlsx") &&
                 !excel_filepath.toLowerCase().endsWith(".xls")
             ) {
@@ -58,8 +61,8 @@ router.route("/uploads").post(
             const response = await axios.post(
                 "http://127.0.0.1:8000/process",
                 {
-                    document_pdf: pdf_filepath,
-                    excel_file: excel_filepath
+                    document_pdf: pdf_filepath || null,
+                    excel_file: excel_filepath || null
                 },
                 {
                     timeout: 600000

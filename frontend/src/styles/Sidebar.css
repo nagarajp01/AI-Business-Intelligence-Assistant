@@ -72,3 +72,8 @@
     margin: 15px 0;
     font-size: 14px;
 }
+.upload-error {
+    color: #dc2626;
+    font-size: 13px;
+    margin-top: 8px;
+}

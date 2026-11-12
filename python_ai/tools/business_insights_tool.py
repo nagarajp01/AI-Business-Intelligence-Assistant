@@ -8,18 +8,20 @@ from utils.report_generator import create_report
 class BusinessInsightsInput(BaseModel):
 
     question: str = Field(
-        description=(
-            "The user's business analysis question. "
-            "Use this to determine what business insights should be generated."
+         description=(
+            "The user's business question or analysis objective. "
+            "Specify the business metrics, performance areas, trends, "
+            "opportunities, problems, or recommendations to investigate "
+            "using the uploaded dataset."
         )
     )
 
     generate_pdf: bool = Field(
         default=False,
         description=(
-            "Set to True when the user explicitly asks for a PDF report, "
-            "business report, or downloadable report. "
-            "Otherwise set to False."
+            "Set to True only when the user explicitly requests a PDF, "
+            "downloadable business report, or a report file. "
+            "Set to False for normal business analysis and conversational answers."
         )
     )
 
@@ -27,18 +29,24 @@ class BusinessInsightsInput(BaseModel):
 class BusinessInsightsTool(BaseTool):
 
     name: str = "Business_Insights_Tool"
-
     description: str = (
-        "Generate business insights from uploaded CSV or Excel datasets. "
-        "Use this tool when the user asks for sales intelligence, demand analysis, "
-        "growth opportunities, business recommendations, or an overall business "
-        "assessment based on uploaded data. "
-        "The tool analyzes the actual dataset using Pandas and Python, "
-        "uses forecasting information when required, and provides "
-        "data-driven business insights and actionable recommendations. "
-        "If the user asks for a PDF report, set generate_pdf to True. "
-        "Do not invent or assume data that is not present in the dataset."
-    )
+        "Perform comprehensive business analysis using the uploaded CSV "
+        "or Excel dataset. "
+        "Use this tool when the user requests an overall business assessment, "
+        "sales intelligence, business performance evaluation, demand analysis, "
+        "growth opportunities, problem identification, or strategic "
+        "recommendations based on the dataset. "
+        "Analyze the actual dataset and provide data-driven findings, "
+        "business insights, and actionable recommendations. "
+        "Use data_analysis_tool for individual calculations and "
+        "prediction_tool for standalone future forecasting. "
+        "This tool is intended for broader business analysis rather than "
+        "isolated numerical questions. "
+        "Set generate_pdf to True only when the user explicitly requests "
+        "a PDF or downloadable report. "
+        "Never invent data, figures, trends, or conclusions unsupported "
+        "by the uploaded dataset."
+        )
 
     args_schema: type[BaseModel] = BusinessInsightsInput
 

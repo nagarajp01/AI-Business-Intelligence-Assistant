@@ -12,13 +12,23 @@ from prophet import Prophet
 class PredictionTool(BaseTool):
 
     name: str = "prediction_tool"
-
     description: str = (
-        "Predict and forecast future values from uploaded CSV or Excel data. "
-        "Use this tool when the user asks to predict, forecast, estimate "
-        "future sales, revenue, profit, demand, quantity, or other numerical "
-        "values from uploaded CSV or Excel data."
-    )
+        "Generate forecasts and predict future numerical values using an "
+        "uploaded CSV or Excel dataset. "
+        "Use this tool whenever the user explicitly asks to predict, forecast, "
+        "estimate, or project future values such as sales, revenue, profit, "
+        "demand, quantity, or other numerical metrics. "
+        "Use the historical data in the uploaded dataset to generate "
+        "model-based predictions for the requested future time period. "
+        "Identify the relevant date column and target column from the dataset. "
+        "Use the duration requested by the user; if no duration is specified, "
+        "apply the default forecasting period handled by this tool. "
+        "Do not invent historical data or predicted values. "
+        "Use data_analysis_tool for historical calculations and "
+        "Business_Insights_Tool for comprehensive business analysis "
+        "and recommendations."
+        )
+
 
     file_path: str
 

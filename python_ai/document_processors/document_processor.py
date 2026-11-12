@@ -67,7 +67,7 @@ print("\n===============================================")
 #     retriever=create_retriever(vector_store)
 
 #     return retriever
-def document_processor(file_path):
+def document_processor(file_path,collection_name):
 
     print("\n========== DOCUMENT PROCESSING ==========")
 
@@ -106,7 +106,8 @@ def document_processor(file_path):
 
     vector_store = create_vector_store(
         chunks,
-        embedding_model
+        embedding_model,
+        collection_name
     )
 
     print(

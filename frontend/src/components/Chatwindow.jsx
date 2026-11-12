@@ -1,5 +1,7 @@
 import { useState } from "react";
 import "../styles/Chat.css";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm"
 // import axios from "axios";
 
 function Chatwindow({workspaceId}){
@@ -9,6 +11,18 @@ function Chatwindow({workspaceId}){
 
     const handleSubmit= async(e)=>{
         e.preventDefault()
+        if (loading) {
+            return;
+        }
+        if (!workspaceId) {
+            setMessages(prev => [
+                ...prev,{
+                    sender:"ai",
+                    text:"Please upload at least one file (PDF or Excel) before asking questions."
+                }
+            ]);
+            return;
+        }
         if(!input.trim()){
             return
         }
@@ -39,7 +53,15 @@ function Chatwindow({workspaceId}){
             //     text:response.data.answer}])
             //below for streaming ui reponse of ai message , above also works
                 if (!response.ok) {
-                    throw new Error("Failed to get AI response");
+                    const errorData=await response.json()
+                    if (response.status===404){
+                        throw new Error("Your workspace has expired. Please upload your files again.");
+                    }
+                    throw new Error(
+                        errorData.detail ||
+                        errorData.message ||
+                        "Unable to get AI response. Please try again."
+                    );
                 }
                 const reader = response.body.getReader();
                 const decoder = new TextDecoder();
@@ -63,12 +85,13 @@ function Chatwindow({workspaceId}){
                     });
                 }
             } catch (error) {
+                console.error("Chat error:", error);
                 setMessages(prev=>[...prev,
                     {
                         sender:"ai",
-                        text:"Something Went wrong. Please try again"
+                        text: error.message || "Something Went wrong. Please try again"
                     }
-                ])
+                ]);
                 
             }
             finally {
@@ -83,14 +106,19 @@ function Chatwindow({workspaceId}){
            {messages.length==0 && (
              <section>
                 <h2>Welcome to AI Business Intelligence Assistant</h2>
-                <p>Upload your PDF and Excel files, then ask questions to get business insights.</p>
+                <p>Upload a PDF, an Excel file, or both, then ask questions to get business insights.</p>
             </section>
            )}
             <div className="chat-messages">
                {
                 messages.map((msg,index)=>(
                     <div className={msg.sender==="user"?"user-message" : "ai-message"} key={index}>
-                        <p>{msg.text}</p>
+                        {msg.sender==="ai" ?(
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                {msg.text}
+                            </ReactMarkdown>):(
+                                <p>{msg.text}</p>
+                            )}
                         {msg.sender==="ai" && 
                         typeof msg.text === "string" && msg.text.includes("BusinessFileReport.pdf")&&
                         workspaceId && (

@@ -11,7 +11,21 @@ client=TavilyClient(
 
 @tool
 def news_search(query:str)->str:
-    """Search for recent company and market news
+    """
+    Search for recent news and current developments.
+
+    Use this tool when the user asks for the latest news, recent
+    announcements, company updates, market developments, industry
+    news, business events, or recent competitor activities.
+
+    Focus on recent information relevant to the user's query.
+    Prefer dated news reports and reliable sources.
+
+    Use web_search for general web research and rag_tool for
+    information contained in uploaded documents.
+
+    Do not invent news, dates, events, or claims. Base answers
+    on the retrieved news search results.
     """
     response=client.search(
         query=query,

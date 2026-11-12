@@ -9,21 +9,19 @@ from langchain_core.output_parsers import StrOutputParser
 class DataAnalysisTool(BaseTool):
 
     name: str = "data_analysis_tool"
-
     description: str = (
-    "Analyze the uploaded CSV or Excel dataset using Pandas and Python. "
-    "Use this tool whenever the user asks for calculations, aggregation, "
-    "grouping, filtering, sorting, comparisons, statistics, trends, "
-    "patterns, relationships, correlations, business insights, "
-    "or numerical analysis of the uploaded CSV or Excel data. "
-    "This includes questions about totals, averages, counts, minimums, "
-    "maximums, percentages, growth rates, rankings, sales, revenue, "
-    "profit, quantity, products, regions, customers, dates, monthly "
-    "or yearly trends, and comparisons between any available columns. "
-    "Use this tool to analyze the actual uploaded dataset and never "
-    "assume or invent data."
-    )
-
+        "Analyze uploaded CSV or Excel datasets using Pandas and Python. "
+        "Use this tool when the user requests numerical calculations, "
+        "aggregations, filtering, grouping, sorting, statistical analysis, "
+        "historical trends, or comparisons based on the uploaded data. "
+        "It handles totals, averages, counts, percentages, minimums, maximums, "
+        "rankings, revenue, sales, profit, quantities, and comparisons across "
+        "products, regions, customers, dates, or other available columns. "
+        "Use the actual dataset for every calculation and never invent or "
+        "assume values. Use prediction_tool for standalone future forecasting "
+        "and Business_Insights_Tool for comprehensive business analysis "
+        "and strategic recommendations."
+        )
     file_path: str
     
     def _run(self,question:str):
