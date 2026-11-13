@@ -1,35 +1,33 @@
+import re
+import json
 import pandas as pd
 from agents.llm import load_llm
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from langchain_experimental.tools import PythonAstREPLTool
-from tools.prediction_tool import PredictionTool
+import numpy as np
 
 
 class BusinessAnalysisService:
 
+    # ------------------------------------------------------------------
     # Main analysis function
-
+    # ------------------------------------------------------------------
     def analyze(self, file_path: str, question: str):
+
         # Load dataset
         if file_path.endswith(".xlsx"):
-
             df = pd.read_excel(file_path)
-
         elif file_path.endswith(".csv"):
-
             df = pd.read_csv(file_path)
-
         else:
-
             return "Unsupported file"
 
         columns = list(df.columns)
 
         llm = load_llm()
         parser = StrOutputParser()
-        # Identify relevant columns
 
+        # Identify relevant columns
         prompt1 = PromptTemplate(
             template="""
 You are a Sales Intelligence data analysis assistant.
@@ -47,6 +45,7 @@ Identify the columns that are relevant for calculating Sales Intelligence metric
 Look for columns representing concepts such as:
 - date or time
 - sales or revenue
+- profit
 - product
 - region
 - quantity
@@ -65,29 +64,26 @@ Do not include explanations.
 
         column_chain = prompt1 | llm | parser
 
-        columns_identified = column_chain.invoke({
+        raw_columns = column_chain.invoke({
             "question": question,
             "columns": columns
         })
 
+        # Keep only valid columns instead of failing the whole analysis
         columns_identified = [
-            column.strip()
-            for column in columns_identified.split(",")
+            column.strip().strip("'\"[]")
+            for column in raw_columns.split(",")
         ]
-        # Validate identified columns
-
-        invalid_columns = [
-            column
-            for column in columns_identified
-            if column not in columns
+        columns_identified = [
+            column for column in columns_identified
+            if column in columns
         ]
 
-        if invalid_columns:
-
-            return f"Invalid columns identified: {invalid_columns}"
+        # Fall back to all columns if the LLM returned nothing valid
+        if not columns_identified:
+            columns_identified = columns
 
         # Generate Pandas code
-
         pandas_code = self.generate_pandas_code(
             question=question,
             columns=columns,
@@ -95,15 +91,16 @@ Do not include explanations.
             llm=llm,
             parser=parser
         )
+        print("GENERATED CODE:\n", pandas_code)
 
         # Execute generated Pandas code
-
         sales_metrics = self.execute_pandas_code(
             pandas_code=pandas_code,
             df=df
         )
-        # If execution fails, ask LLM to correct the code
+        print("EXEC RESULT:", sales_metrics)
 
+        # If execution fails, ask the LLM to correct the code (up to 3 times)
         if not isinstance(sales_metrics, dict):
 
             correction_prompt = PromptTemplate(
@@ -135,12 +132,10 @@ Rules:
 3. Do not create fake or sample data.
 4. Use only columns that actually exist in the DataFrame.
 5. Perform the actual calculations using Pandas.
-6. Create a variable named `sales_metrics`.
-7. `sales_metrics` MUST contain a Python dictionary.
-8. The LAST LINE of the generated code MUST be exactly:
-
-sales_metrics
-
+6. Convert date columns with pd.to_datetime(..., errors="coerce").
+7. Create a variable named `sales_metrics`.
+8. `sales_metrics` MUST contain a Python dictionary with plain
+   Python values (use float(), int(), and .to_dict()).
 9. Return ONLY executable Python code.
 10. Do not include Markdown code fences.
 11. Do not explain the code.
@@ -155,50 +150,40 @@ sales_metrics
 
             correction_chain = correction_prompt | llm | parser
 
-            corrected_code = correction_chain.invoke({
-                "pandas_code": pandas_code,
-                "execution_error": sales_metrics,
-                "columns": columns,
-                "question": question
-            })
+            for attempt in range(3):
 
+                if isinstance(sales_metrics, dict):
+                    break
 
-            sales_metrics = self.execute_pandas_code(
-                pandas_code=corrected_code,
-                df=df
-            )
-        # Final validation
+                pandas_code = correction_chain.invoke({
+                    "pandas_code": pandas_code,
+                    "execution_error": sales_metrics,
+                    "columns": columns,
+                    "question": question
+                })
 
+                sales_metrics = self.execute_pandas_code(
+                    pandas_code=pandas_code,
+                    df=df
+                )
+                print(f"RETRY {attempt + 1} RESULT:", sales_metrics)
+
+        # Final validation (return text instead of raising,
+        # so the agent does not crash)
         if not isinstance(sales_metrics, dict):
-
-            raise ValueError(
-                "Sales analysis failed: generated Python code "
-                "did not return a dictionary."
+            return (
+                "Sales analysis failed after retries. "
+                f"Last error: {sales_metrics}"
             )
-
-        # Prediction / Forecasting
-
-        prediction_tool = PredictionTool(
-            file_path=file_path
-        )
-
-        forecast_result = prediction_tool.get_forecast(
-            question
-        )
-
-        if isinstance(forecast_result, str):
-
-            return forecast_result
 
         # Return complete analysis result
-
         return {
             "sales_metrics": sales_metrics,
-            "forecast_result": forecast_result
         }
 
+    # ------------------------------------------------------------------
     # Generate Pandas code
-
+    # ------------------------------------------------------------------
     def generate_pandas_code(
         self,
         question,
@@ -240,11 +225,9 @@ Rules:
 10. Create a Python variable named `sales_metrics`.
 11. `sales_metrics` MUST contain a Python dictionary.
 12. Use clear metric names as dictionary keys.
-13. The LAST LINE of the generated code MUST be exactly:
-
-sales_metrics
-
-14. The final execution result MUST therefore be the `sales_metrics` dictionary.
+13. Convert numpy/pandas values to plain Python values
+    (use float(), int(), and .to_dict()).
+14. Convert date columns with pd.to_datetime(..., errors="coerce").
 15. If calculating growth rate, calculate the growth from the first
 recorded date to the last recorded date:
 
@@ -271,26 +254,48 @@ first_to_last_day_growth_rate
             "llm_columns": columns_identified
         })
 
-
         return pandas_code
-    # Execute Pandas code 
-    def execute_pandas_code(self, pandas_code, df):
-        try:
-            local_vars = {
-                "df": df,
-                "pd": pd
-            }
-            python_tool = PythonAstREPLTool(
-                locals=local_vars
-            )
-            result = python_tool.invoke(pandas_code)
-            if isinstance(result, dict):
-                return result
-            return f"Execution did not produce a valid dictionary. Output: {result}"
-        except Exception as error:
-            print(error)
-            return f"Execution error: {error}"
 
+    # ------------------------------------------------------------------
+    # Clean LLM code (remove markdown fences)
+    # ------------------------------------------------------------------
+    def clean_code(self, code: str) -> str:
+        code = code.strip()
+        match = re.search(r"```(?:python)?\s*(.*?)```", code, re.DOTALL)
+        if match:
+            code = match.group(1)
+        return code.strip()
+
+    # ------------------------------------------------------------------
+    # Execute Pandas code
+    # ------------------------------------------------------------------
+    def execute_pandas_code(self, pandas_code, df):
+
+        code = self.clean_code(pandas_code)
+
+        # Workspace the generated code runs in
+        namespace = {
+            "df": df.copy(),
+            "pd": pd,
+            "np": np
+        }
+
+        try:
+            exec(code, namespace)
+        except Exception as error:
+            print(f"Pandas execution error: {error}")
+            return f"Execution error: {type(error).__name__}: {error}"
+
+        sales_metrics = namespace.get("sales_metrics")
+
+        if isinstance(sales_metrics, dict):
+            return sales_metrics
+
+        return "Code ran but `sales_metrics` is not a dictionary."
+
+    # ------------------------------------------------------------------
+    # Generate final natural-language response
+    # ------------------------------------------------------------------
     def generate_response(
         self,
         question: str,
@@ -298,126 +303,78 @@ first_to_last_day_growth_rate
     ):
 
         if isinstance(analysis_result, str):
-
             return analysis_result
+
+        if not isinstance(analysis_result, dict):
+            raise ValueError("Invalid business analysis result.")
+
+        if "sales_metrics" not in analysis_result:
+            raise ValueError("Sales metrics are missing.")
 
         llm = load_llm()
         parser = StrOutputParser()
 
         final_prompt = PromptTemplate(
             template="""
-            You are an AI Business Intelligence assistant.
+You are an AI Business Intelligence assistant.
 
-            The user asked:
-            {question}
+The user asked:
+{question}
 
-            The actual Sales Intelligence metrics calculated from the
-            uploaded dataset are:
-            {sales_metrics}
+The actual historical Sales Intelligence metrics calculated
+from the uploaded dataset are:
+{sales_metrics}
 
-            The actual forecast generated by the forecasting model is:
-            {forecast_result}
+Using ONLY the provided calculated metrics, generate a
+clear business analysis with the following sections:
 
-            Using ONLY the provided calculated metrics and forecast,
-            generate a clear business analysis with the following sections:
+1. Sales Intelligence
+- Present the important historical sales metrics.
+- Mention the strongest and weakest available products,
+  regions, or other business dimensions.
+- Do not invent metrics that were not calculated.
 
-            1. Sales Intelligence
-            - Present the important sales metrics.
-            - Mention the strongest and weakest available products,
-              regions, or other business dimensions when those metrics
-              are available.
-            - Do not invent metrics that were not calculated.
+2. Business Performance
+- Analyze historical business performance.
+- Identify important patterns and comparisons visible
+  in the calculated metrics.
+- Do not invent causes for changes.
 
-            2. Demand Analysis
-            - Analyze the forecast.
-            - Identify whether demand is increasing, decreasing,
-              stable, or fluctuating.
-            - Mention important peaks or dips when visible in the forecast.
-            - Do not invent causes for changes unless the provided data
-              supports them.
+3. Growth Opportunities
+- Identify areas showing strong performance.
+- Identify products, regions, or other dimensions that
+  may represent opportunities for growth.
+- Base observations only on the provided data.
 
-            3. Growth Opportunities
-            - Identify areas showing strong performance.
-            - Identify products, regions, or other dimensions that may
-              represent opportunities for growth.
-            - Base these observations only on the provided data.
+4. Business Recommendations
+- Provide practical recommendations based on actual metrics.
+- Do not invent business facts or external information.
+- Recommend investigating or improving weak-performing
+  areas rather than assuming their underlying causes.
 
-            4. Business Recommendations
-            - Provide practical recommendations based on the actual
-              metrics and forecast.
-            - Recommendations must be supported by the provided data.
-            - Do not invent business facts or external information.
+Rules:
 
-            Rules:
+1. Use only the provided historical Sales Intelligence metrics.
+2. Do not invent or change any numbers.
+3. Do not assume information that is not present.
+4. If a metric is unavailable, do not fabricate it.
+5. Clearly distinguish revenue, quantities, percentages,
+   and other measurements.
+6. Keep the response concise but useful.
+7. Use clear headings and bullet points.
+8. Do not mention customer satisfaction, product quality,
+   market demand, or other factors unless present in the data.
+9. Clearly state the metric used when identifying the best
+   or worst product, region, or other business dimension.
+10. If the data does not contain enough information to answer
+    a question, say that the required metric is unavailable.
+11. Every factual statement must be supported by the
+    provided sales_metrics.
 
-            1. Use only the provided Sales Intelligence metrics and forecast.
-            2. Do not invent or change any numbers.
-            3. Do not assume information that is not present.
-            4. If a metric is unavailable, do not fabricate it.
-            5. Clearly distinguish calculated historical metrics from
-               model-based forecasts.
-            6. Keep the response concise but useful.
-            7. Use clear headings and bullet points where appropriate.
-            8. Do not convert revenue forecasts into inventory, quantity,
-               staffing, or financial recommendations unless the required
-               data for that recommendation is explicitly available.
-            9. Do not treat forecast confidence bounds as inventory,
-               safety-stock, or guaranteed revenue requirements.
-            10. Every recommendation must be directly supported by the
-                provided Sales Intelligence metrics or forecast.
-            11. Clearly distinguish between revenue values, quantities,
-                percentages, and forecast confidence bounds.
-            12. Do not infer causes for sales performance, product
-                performance, or regional performance unless the provided
-                dataset contains evidence supporting that cause.
-
-            13. Do not recommend inventory increases, safety stock,
-                stock levels, supply quantities, staffing levels, or
-                financial commitments unless the dataset contains the
-                required information to support such recommendations.
-
-            14. A sales or revenue forecast represents expected monetary
-                sales. Do not interpret forecast values as inventory
-                requirements, product quantities, or stock levels.
-
-            15. Do not use forecast confidence intervals to determine
-                inventory, safety stock, or supply requirements.
-
-            16. Recommendations should focus on actions that can reasonably
-                be supported by the available sales metrics, product
-                performance, regional performance, and forecast.
-
-            17. When the data only shows that a product or region is
-                performing strongly or weakly, recommend investigating,
-                prioritizing, evaluating, or improving that area rather
-                than assuming the underlying cause.
-            18. Every factual statement in the response MUST be directly
-                supported by a value, metric, category, or result present in
-                sales_metrics or forecast_result.
-
-            19. Do not mention any metric, attribute, measurement, or business
-            factor unless it is present in sales_metrics or forecast_result.
-
-            20. Do not invent information such as customer satisfaction,
-            customer reviews, product quality, market demand, or other factors
-            unless that information is explicitly present in the provided data.
-
-            21. When the user asks which product performed best, determine the
-            answer only from the available product metrics such as
-            revenue_by_product or profit_by_product.
-
-            22. Clearly state the metric used when identifying the best or
-            worst product, region, sales channel, sales representative, or
-            customer segment.
-            
-            23. If the available data does not contain enough information to
-            answer a question, say that the required metric is not available
-            instead of guessing.
-            """,
+""",
             input_variables=[
                 "question",
-                "sales_metrics",
-                "forecast_result"
+                "sales_metrics"
             ]
         )
 
@@ -425,8 +382,11 @@ first_to_last_day_growth_rate
 
         final_response = final_chain.invoke({
             "question": question,
-            "sales_metrics": analysis_result["sales_metrics"],
-            "forecast_result": analysis_result["forecast_result"]
+            "sales_metrics": json.dumps(
+                analysis_result["sales_metrics"],
+                default=str,
+                indent=2
+            ),
         })
 
         return final_response

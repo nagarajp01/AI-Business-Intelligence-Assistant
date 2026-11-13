@@ -5,7 +5,7 @@ from pathlib import Path
 from pydantic import BaseModel
 from typing import Optional
 import uuid
-
+import traceback
 
 app=FastAPI()
 workspaces = {}
@@ -132,8 +132,16 @@ async def stream_agent_response(agent, question, workspace_id):
 
                 if isinstance(content, str) and content:
                     yield content
+                elif isinstance(content,list):
+                    for block in content:
+                        if isinstance(block,dict) and block.get("type")=="text":
+                            yield block.get("text","")
 
     except Exception as error:
+        print("\n========== STREAMING ERROR ==========")
+        print(f"Error: {error}")
+        traceback.print_exc()
+        print("=====================================")
         print(f"Streaming failed: {error}")
         yield "\nSomething went wrong while generating the response. Please try again."
 

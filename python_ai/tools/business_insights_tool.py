@@ -1,3 +1,5 @@
+import traceback
+
 from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 from services.business_analysis_service import BusinessAnalysisService
@@ -6,7 +8,7 @@ from services.business_analysis_service import BusinessAnalysisService
 class BusinessInsightsInput(BaseModel):
 
     question: str = Field(
-         description=(
+        description=(
             "The user's business question or analysis objective. "
             "Specify the business metrics, performance areas, trends, "
             "opportunities, problems, or recommendations to investigate "
@@ -44,7 +46,7 @@ class BusinessInsightsTool(BaseTool):
         "a PDF or downloadable report. "
         "Never invent data, figures, trends, or conclusions unsupported "
         "by the uploaded dataset."
-        )
+    )
 
     args_schema: type[BaseModel] = BusinessInsightsInput
 
@@ -58,39 +60,44 @@ class BusinessInsightsTool(BaseTool):
         generate_pdf: bool = False
     ):
 
-        service = BusinessAnalysisService()
+        try:
+            service = BusinessAnalysisService()
 
-        # Step 1: Analyze the dataset
-        analysis_result = service.analyze(
-            self.file_path,
-            question
-        )
+            # Step 1: Analyze the dataset
+            analysis_result = service.analyze(
+                self.file_path,
+                question
+            )
 
-        # Step 2: Generate the natural-language business response
-        final_response = service.generate_response(
-            question,
-            analysis_result
-        )
+            # Step 2: Validate analysis result
+            if not isinstance(analysis_result, dict):
+                return f"Business analysis failed: {analysis_result}"
 
-        # Step 3: Generate PDF only when ReAct requested it
-        pdf_path = None
+            if "sales_metrics" not in analysis_result:
+                return "Business analysis did not return sales metrics."
 
-        if generate_pdf:
-            from utils.report_generator import create_report
-
-            create_report(
-                self.output_path,
+            # Step 3: Generate the natural-language business response
+            final_response = service.generate_response(
+                question,
                 analysis_result
             )
 
-            pdf_path = self.output_path
+            # Step 4: Generate PDF only when explicitly requested
+            if generate_pdf:
+                from utils.report_generator import create_report
 
-        # Step 4: Return the result to ReAct
-        return {
-            "analysis_result": analysis_result,
-            "final_response": final_response,
-            "pdf_path": pdf_path
-        }
+                create_report(
+                    self.output_path,
+                    analysis_result
+                )
 
+                final_response += (
+                    f"\n\nPDF report generated: {self.output_path}"
+                )
 
+            # Step 5: Return the result to the ReAct agent
+            return final_response
 
+        except Exception as error:
+            traceback.print_exc()
+            return f"Business analysis failed: {error}"

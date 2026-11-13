@@ -10,12 +10,14 @@ from reportlab.platypus import (
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 # CREATE REPORT
 def create_report(outputPath, analysis_result):
 
     sales_metrics = analysis_result["sales_metrics"]
-    forecast_result = analysis_result["forecast_result"]
+    forecast_result = analysis_result.get("forecast_result")
 
     document = SimpleDocTemplate(
         outputPath,
@@ -462,211 +464,219 @@ def create_report(outputPath, analysis_result):
                     PageBreak()
                 )
 
-    # FORECAST PAGE
 
-    elements.append(
-        PageBreak()
-    )
+    # FORECAST PAGE - only when forecast data is available
 
+    if (
+        isinstance(forecast_result, dict)
+        and forecast_result.get("forecast")
+    ):
 
-    forecast_heading = Paragraph(
-        "Sales Forecast",
-        styles["Heading1"]
-    )
-
-
-    elements.append(
-        forecast_heading
-    )
-
-
-    elements.append(
-        Spacer(1, 10)
-    )
-
-
-    # FORECAST INFORMATION
-
-    forecast_info = []
-
-
-    if "time_column" in forecast_result:
-
-        forecast_info.append(
-            f"<b>Time Column:</b> "
-            f"{forecast_result['time_column']}"
-        )
-
-
-    if "target_column" in forecast_result:
-
-        forecast_info.append(
-            f"<b>Target Column:</b> "
-            f"{forecast_result['target_column']}"
-        )
-
-
-    if "periods" in forecast_result:
-
-        forecast_info.append(
-            f"<b>Forecast Period:</b> "
-            f"{forecast_result['periods']} "
-            f"{forecast_result.get('unit', '')}"
-        )
-
-    if forecast_info:
-
-        forecast_info_text = "<br/>".join(
-            forecast_info
-        )
+        # FORECAST PAGE
 
         elements.append(
-            Paragraph(
-                forecast_info_text,
-                styles["BodyText"]
+            PageBreak()
+        )
+
+
+        forecast_heading = Paragraph(
+            "Sales Forecast",
+            styles["Heading1"]
+        )
+
+
+        elements.append(
+            forecast_heading
+        )
+
+
+        elements.append(
+            Spacer(1, 10)
+        )
+
+
+        # FORECAST INFORMATION
+
+        forecast_info = []
+
+
+        if "time_column" in forecast_result:
+
+            forecast_info.append(
+                f"<b>Time Column:</b> "
+                f"{forecast_result['time_column']}"
             )
-        )
-
-        elements.append(
-            Spacer(1, 15)
-        )
-
-    # FORECAST TABLE
-
-    forecast_data = [
-        [
-            "Date",
-            "Forecast",
-            "Lower Bound",
-            "Upper Bound"
-        ]
-    ]
 
 
-    forecast_items = forecast_result.get(
-        "forecast",
-        []
-    )
+        if "target_column" in forecast_result:
+
+            forecast_info.append(
+                f"<b>Target Column:</b> "
+                f"{forecast_result['target_column']}"
+            )
 
 
-    for forecast_item in forecast_items:
+        if "periods" in forecast_result:
 
-        forecast_data.append(
-            [
-                format_date(
-                    forecast_item.get("ds")
-                ),
+            forecast_info.append(
+                f"<b>Forecast Period:</b> "
+                f"{forecast_result['periods']} "
+                f"{forecast_result.get('unit', '')}"
+            )
 
-                format_number(
-                    forecast_item.get("yhat")
-                ),
+        if forecast_info:
 
-                format_number(
-                    forecast_item.get("yhat_lower")
-                ),
+            forecast_info_text = "<br/>".join(
+                forecast_info
+            )
 
-                format_number(
-                    forecast_item.get("yhat_upper")
+            elements.append(
+                Paragraph(
+                    forecast_info_text,
+                    styles["BodyText"]
                 )
+            )
+
+            elements.append(
+                Spacer(1, 15)
+            )
+
+        # FORECAST TABLE
+
+        forecast_data = [
+            [
+                "Date",
+                "Forecast",
+                "Lower Bound",
+                "Upper Bound"
+            ]
+        ]
+
+
+        forecast_items = forecast_result.get(
+            "forecast",
+            []
+        )
+
+
+        for forecast_item in forecast_items:
+
+            forecast_data.append(
+                [
+                    format_date(
+                        forecast_item.get("ds")
+                    ),
+
+                    format_number(
+                        forecast_item.get("yhat")
+                    ),
+
+                    format_number(
+                        forecast_item.get("yhat_lower")
+                    ),
+
+                    format_number(
+                        forecast_item.get("yhat_upper")
+                    )
+                ]
+            )
+
+
+        forecast_table = Table(
+            forecast_data,
+            colWidths=[
+                110,
+                110,
+                110,
+                110
             ]
         )
 
 
-    forecast_table = Table(
-        forecast_data,
-        colWidths=[
-            110,
-            110,
-            110,
-            110
-        ]
-    )
+        forecast_table.setStyle(
+            TableStyle([
+                (
+                    "BACKGROUND",
+                    (0, 0),
+                    (-1, 0),
+                    colors.lightgrey
+                ),
 
+                (
+                    "GRID",
+                    (0, 0),
+                    (-1, -1),
+                    1,
+                    colors.black
+                ),
 
-    forecast_table.setStyle(
-        TableStyle([
-            (
-                "BACKGROUND",
-                (0, 0),
-                (-1, 0),
-                colors.lightgrey
-            ),
+                (
+                    "PADDING",
+                    (0, 0),
+                    (-1, -1),
+                    6
+                ),
 
-            (
-                "GRID",
-                (0, 0),
-                (-1, -1),
-                1,
-                colors.black
-            ),
+                (
+                    "VALIGN",
+                    (0, 0),
+                    (-1, -1),
+                    "MIDDLE"
+                ),
 
-            (
-                "PADDING",
-                (0, 0),
-                (-1, -1),
-                6
-            ),
-
-            (
-                "VALIGN",
-                (0, 0),
-                (-1, -1),
-                "MIDDLE"
-            ),
-
-            (
-                "ALIGN",
-                (1, 1),
-                (-1, -1),
-                "RIGHT"
-            ),
-        ])
-    )
-
-
-    elements.append(
-        forecast_table
-    )
-
-
-    elements.append(
-        Spacer(1, 20)
-    )
-
-    # FORECAST GRAPH
-
-    if forecast_items:
-
-        forecast_chart_path = create_forecast_chart(
-            forecast_items
+                (
+                    "ALIGN",
+                    (1, 1),
+                    (-1, -1),
+                    "RIGHT"
+                ),
+            ])
         )
 
 
-        if forecast_chart_path:
+        elements.append(
+            forecast_table
+        )
 
-            forecast_graph_heading = Paragraph(
-                "Sales Forecast Graph",
-                styles["Heading2"]
+
+        elements.append(
+            Spacer(1, 20)
+        )
+
+        # FORECAST GRAPH
+
+        if forecast_items:
+
+            forecast_chart_path = create_forecast_chart(
+                forecast_items
             )
 
 
-            elements.append(
-                forecast_graph_heading
-            )
+            if forecast_chart_path:
 
-
-            elements.append(
-                Spacer(1, 5)
-            )
-
-
-            elements.append(
-                Image(
-                    forecast_chart_path,
-                    width=450,
-                    height=280
+                forecast_graph_heading = Paragraph(
+                    "Sales Forecast Graph",
+                    styles["Heading2"]
                 )
-            )
+
+
+                elements.append(
+                    forecast_graph_heading
+                )
+
+
+                elements.append(
+                    Spacer(1, 5)
+                )
+
+
+                elements.append(
+                    Image(
+                        forecast_chart_path,
+                        width=450,
+                        height=280
+                    )
+                )
 
     # BUILD PDF
 

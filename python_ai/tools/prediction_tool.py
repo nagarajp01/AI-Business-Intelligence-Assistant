@@ -1,12 +1,12 @@
-import pandas as pd
+import traceback
 
+import pandas as pd
+from statsmodels.tsa.holtwinters import ExponentialSmoothing
 from langchain_core.tools import BaseTool
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
 from agents.llm import load_llm
-
-from prophet import Prophet
 
 
 class PredictionTool(BaseTool):
@@ -18,17 +18,13 @@ class PredictionTool(BaseTool):
         "Use this tool whenever the user explicitly asks to predict, forecast, "
         "estimate, or project future values such as sales, revenue, profit, "
         "demand, quantity, or other numerical metrics. "
-        "Use the historical data in the uploaded dataset to generate "
-        "model-based predictions for the requested future time period. "
+        "Use historical data to generate model-based predictions. "
         "Identify the relevant date column and target column from the dataset. "
-        "Use the duration requested by the user; if no duration is specified, "
-        "apply the default forecasting period handled by this tool. "
+        "Use the requested forecast duration or default to 7 days. "
         "Do not invent historical data or predicted values. "
         "Use data_analysis_tool for historical calculations and "
-        "Business_Insights_Tool for comprehensive business analysis "
-        "and recommendations."
-        )
-
+        "Business_Insights_Tool for comprehensive business analysis."
+    )
 
     file_path: str
 
@@ -44,10 +40,9 @@ class PredictionTool(BaseTool):
         else:
             return "Unsupported file."
 
-        # Get all available columns
         all_columns = list(df.columns)
 
-        # Ask LLM to identify time and target columns
+        # Identify date and target columns using LLM
         prompt = PromptTemplate(
             template="""
 You are a forecasting assistant.
@@ -75,28 +70,20 @@ Do not invent column names.
             input_variables=["question", "columns"]
         )
 
-        # Load LLM
         llm = load_llm()
-
         parser = StrOutputParser()
 
         prediction_chain = prompt | llm | parser
 
-        # Ask LLM to identify the columns
         response = prediction_chain.invoke({
             "question": question,
             "columns": all_columns
         })
 
-        # Convert response into lines
-        lines = response.strip().splitlines()
-
-        # Create variables for column names
         time_column = None
         target_column = None
 
-        # Extract column names
-        for line in lines:
+        for line in response.strip().splitlines():
 
             if line.startswith("time_column:"):
                 time_column = line.split(":", 1)[1].strip()
@@ -104,44 +91,31 @@ Do not invent column names.
             elif line.startswith("target_column:"):
                 target_column = line.split(":", 1)[1].strip()
 
-        # Validate the identified columns
+        # Validate identified columns
         if time_column not in df.columns:
             return "Could not identify a valid time column."
 
         if target_column not in df.columns:
             return "Could not identify a valid target column."
 
-        # Keep only the required columns
-        forecast_df = df[
-            [time_column, target_column]
-        ].copy()
+        # Prepare historical data
+        forecast_df = df[[time_column, target_column]].copy()
 
-        # Convert time column to datetime
         forecast_df[time_column] = pd.to_datetime(
             forecast_df[time_column],
             errors="coerce"
         )
 
-        # Remove invalid dates
-        forecast_df = forecast_df.dropna(
-            subset=[time_column]
-        )
-
-        # Convert target column to numeric
         forecast_df[target_column] = pd.to_numeric(
             forecast_df[target_column],
             errors="coerce"
         )
 
-        # Remove invalid target values
         forecast_df = forecast_df.dropna(
-            subset=[target_column]
+            subset=[time_column, target_column]
         )
 
-        # Sort data by date
-        forecast_df = forecast_df.sort_values(
-            by=time_column
-        )
+        forecast_df = forecast_df.sort_values(by=time_column)
 
         # Combine duplicate dates
         forecast_df = forecast_df.groupby(
@@ -149,50 +123,10 @@ Do not invent column names.
             as_index=False
         )[target_column].sum()
 
-        # Check whether enough historical data exists
         if len(forecast_df) < 3:
             return "Not enough historical data for forecasting."
 
-        # Detect data frequency
-        frequency = pd.infer_freq(
-            forecast_df[time_column]
-        )
-
-        # Calculate common date difference if frequency cannot be detected
-        if frequency is None:
-
-            date_differences = (
-                forecast_df[time_column]
-                .diff()
-                .dropna()
-            )
-
-            if date_differences.empty:
-                return "Could not determine the time frequency."
-
-            common_difference = (
-                date_differences.mode()[0]
-            )
-
-        else:
-
-            common_difference = None
-
-        # Convert data to Prophet format
-        forecast_data = forecast_df.rename(
-            columns={
-                time_column: "ds",
-                target_column: "y"
-            }
-        )
-
-        # Create Prophet model
-        model = Prophet()
-
-        # Train Prophet
-        model.fit(forecast_data)
-
-        # Ask LLM for forecast duration
+        # Identify forecast duration using LLM
         horizon_prompt = PromptTemplate(
             template="""
 You are a forecasting assistant.
@@ -234,140 +168,149 @@ If the user does not specify a duration:
 periods: 7
 unit: days
 """,
-            input_variables=[
-                "question"
-            ]
+            input_variables=["question"]
         )
 
-        # Create horizon chain
-        horizon_chain = (
-            horizon_prompt
-            | llm
-            | parser
-        )
+        horizon_chain = horizon_prompt | llm | parser
 
-        # Ask LLM for periods and unit
         horizon_response = horizon_chain.invoke({
             "question": question
         })
 
-        # Convert horizon response into lines
-        horizon_lines = (
-            horizon_response
-            .strip()
-            .splitlines()
-        )
-
-        # Create variables for periods and unit
         periods = None
         unit = None
 
-        # Extract periods and unit
-        for line in horizon_lines:
+        for line in horizon_response.strip().splitlines():
 
             if line.startswith("periods:"):
-                periods = int(
-                    line.split(":", 1)[1].strip()
-                )
+                try:
+                    periods = int(line.split(":", 1)[1].strip())
+                except ValueError:
+                    return "Could not determine a valid forecast period."
 
             elif line.startswith("unit:"):
-                unit = (
-                    line
-                    .split(":", 1)[1]
-                    .strip()
-                    .lower()
-                )
+                unit = line.split(":", 1)[1].strip().lower()
 
-        # Validate forecast duration
-        if periods is None:
-            return "Could not determine a valid forecast period."
-
-        if periods <= 0:
+        if periods is None or periods <= 0:
             return "Forecast period must be greater than zero."
 
         if unit not in ["days", "weeks", "months", "years"]:
             return "Unsupported forecast time unit."
 
-        # Convert unit into Prophet frequency
-        if unit == "days":
-            forecast_freq = "D"
+        # Map requested forecast unit to Pandas frequency
+        frequency_map = {
+            "days": "D",
+            "weeks": "W-SUN",
+            "months": "MS",
+            "years": "YS"
+        }
 
-        elif unit == "weeks":
-            forecast_freq = "W"
+        forecast_freq = frequency_map[unit]
 
-        elif unit == "months":
-            forecast_freq = "MS"
-
-        elif unit == "years":
-            forecast_freq = "YS"
-
-        # Create future dates
-        if frequency is not None:
-
-            future = model.make_future_dataframe(
-                periods=periods,
-                freq=forecast_freq
-            )
-
-        else:
-
-            last_date = forecast_data["ds"].max()
-
-            if unit == "days":
-
-                future_dates = pd.date_range(
-                    start=last_date + pd.Timedelta(days=1),
-                    periods=periods,
-                    freq="D"
-                )
-
-            elif unit == "weeks":
-
-                future_dates = pd.date_range(
-                    start=last_date + pd.Timedelta(weeks=1),
-                    periods=periods,
-                    freq="W"
-                )
-
-            elif unit == "months":
-
-                future_dates = pd.date_range(
-                    start=last_date + pd.offsets.MonthBegin(1),
-                    periods=periods,
-                    freq="MS"
-                )
-
-            elif unit == "years":
-
-                future_dates = pd.date_range(
-                    start=last_date + pd.offsets.YearBegin(1),
-                    periods=periods,
-                    freq="YS"
-                )
-
-            future = pd.DataFrame({
-                "ds": future_dates
-            })
-
-        # Generate predictions
-        forecast = model.predict(future)
-
-        # Get last historical date
-        last_date = forecast_data["ds"].max()
-
-        # Keep only future predictions
-        future_forecast = forecast[
-            forecast["ds"] > last_date
-        ][
-            ["ds", "yhat", "yhat_lower", "yhat_upper"]
-        ]
-
-        # Convert forecast DataFrame into structured records
-        forecast_records = future_forecast.to_dict(
-            orient="records"
+        # Resample historical observations to the requested frequency.
+        # Summation is appropriate for additive metrics such as sales,
+        # revenue, and quantity.
+        historical_series = (
+            forecast_df
+            .set_index(time_column)[target_column]
+            .resample(forecast_freq)
+            .sum(min_count=1)
+            .dropna()
         )
 
-        # Return structured forecast
+        if len(historical_series) < 3:
+            return (
+                "Not enough historical observations at the requested "
+                "forecast frequency. Please provide more data or select "
+                "a suitable forecast duration."
+            )
+
+        # Avoid forecasting at a finer frequency than the historical data.
+        date_differences = (
+            forecast_df[time_column]
+            .sort_values()
+            .diff()
+            .dropna()
+        )
+
+        median_days = date_differences.dt.total_seconds().median() / 86400
+
+        expected_days = {
+            "days": 1,
+            "weeks": 7,
+            "months": 30,
+            "years": 365
+        }
+
+        if median_days > expected_days[unit] * 1.5:
+            return (
+                "The requested forecast frequency is finer than the "
+                "historical data frequency. Please select a suitable "
+                "forecast period."
+            )
+
+        # Train Statsmodels Exponential Smoothing model
+        try:
+
+            if len(historical_series) >= 4:
+
+                model = ExponentialSmoothing(
+                    historical_series,
+                    trend="add",
+                    damped_trend=True,
+                    initialization_method="estimated"
+                )
+
+            else:
+
+                model = ExponentialSmoothing(
+                    historical_series,
+                    initialization_method="estimated"
+                )
+
+            fitted_model = model.fit(optimized=True)
+
+            # Generate future predictions
+            predictions = fitted_model.forecast(periods)
+
+        except Exception as error:
+
+            return f"Forecast generation failed: {str(error)}"
+
+        # Calculate approximate forecast ranges using historical errors.
+        # These are NOT formal statistical confidence intervals.
+        residuals = (
+            historical_series - fitted_model.fittedvalues
+        ).dropna()
+
+        error_std = residuals.std()
+
+        if pd.isna(error_std):
+            error_std = 0.0
+
+        # Generate future dates
+        last_date = historical_series.index[-1]
+
+        future_dates = pd.date_range(
+            start=last_date,
+            periods=periods + 1,
+            freq=forecast_freq
+        )[1:]
+
+        # Build output compatible with existing PDF generator
+        forecast_records = []
+
+        for date, prediction in zip(future_dates, predictions):
+
+            predicted_value = float(prediction)
+
+            forecast_records.append({
+                "ds": date,
+                "yhat": predicted_value,
+                "yhat_lower": predicted_value - (1.96 * error_std),
+                "yhat_upper": predicted_value + (1.96 * error_std)
+            })
+
         return {
             "time_column": time_column,
             "target_column": target_column,
@@ -376,23 +319,22 @@ unit: days
             "forecast": forecast_records
         }
 
-    def _run(self, question: str):
+    def _run_inner(self, question: str):
 
-        # Get structured forecast
-        forecast_result = self.get_forecast(
-            question
-        )
+        forecast_result = self.get_forecast(question)
 
-        # Check whether forecasting failed
         if isinstance(forecast_result, str):
             return forecast_result
 
-        # Load LLM
-        llm = load_llm()
+        if not isinstance(forecast_result, dict):
+            return "Forecasting could not be completed."
 
+        if "forecast" not in forecast_result:
+            return "Forecasting did not return valid forecast data."
+
+        llm = load_llm()
         parser = StrOutputParser()
 
-        # Ask LLM to explain the structured forecast
         result_prompt = PromptTemplate(
             template="""
 You are a business forecasting assistant.
@@ -413,7 +355,9 @@ Rules:
 3. Clearly mention the predicted values.
 4. Explain the forecast in simple business language.
 5. Mention that these are model-based predictions, not guarantees.
-6. Keep the answer concise.
+6. Explain that lower and upper ranges are approximate estimates
+   based on historical model errors, not formal confidence intervals.
+7. Keep the answer concise.
 """,
             input_variables=[
                 "question",
@@ -421,18 +365,20 @@ Rules:
             ]
         )
 
-        # Create final result chain
-        result_chain = (
-            result_prompt
-            | llm
-            | parser
-        )
+        result_chain = result_prompt | llm | parser
 
-        # Generate final answer
         final_response = result_chain.invoke({
             "question": question,
             "prediction_result": forecast_result["forecast"]
         })
 
-        # Return final answer
         return final_response
+
+    def _run(self, question: str):
+
+        try:
+            return self._run_inner(question)
+
+        except Exception as error:
+            traceback.print_exc()
+            return f"Forecasting failed: {error}"
