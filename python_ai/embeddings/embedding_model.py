@@ -1,10 +1,28 @@
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_community.embeddings import FastEmbedEmbeddings
+
 _embedding_model = None
+
 def load_embedding_model():
     global _embedding_model
+
     if _embedding_model is None:
-        _embedding_model = HuggingFaceEmbeddings(
-            model_name="sentence-transformers/all-MiniLM-L6-v2"
+        _embedding_model = FastEmbedEmbeddings(
+            model_name="BAAI/bge-small-en-v1.5"
         )
 
     return _embedding_model
+
+
+
+
+
+# from langchain_huggingface import HuggingFaceEmbeddings
+# _embedding_model = None
+# def load_embedding_model():
+#     global _embedding_model
+#     if _embedding_model is None:
+#         _embedding_model = HuggingFaceEmbeddings(
+#             model_name="sentence-transformers/all-MiniLM-L6-v2"
+#         )
+
+#     return _embedding_model
