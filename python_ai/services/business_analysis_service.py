@@ -162,9 +162,6 @@ sales_metrics
                 "question": question
             })
 
-            print("\n========== CORRECTED PANDAS CODE ==========")
-            print(corrected_code)
-            print("============================================\n")
 
             sales_metrics = self.execute_pandas_code(
                 pandas_code=corrected_code,
@@ -178,11 +175,6 @@ sales_metrics
                 "Sales analysis failed: generated Python code "
                 "did not return a dictionary."
             )
-
-        print("\n========== SALES METRICS ==========")
-        print("TYPE:", type(sales_metrics))
-        print("VALUE:", sales_metrics)
-        print("===================================\n")
 
         # Prediction / Forecasting
 
@@ -279,9 +271,6 @@ first_to_last_day_growth_rate
             "llm_columns": columns_identified
         })
 
-        print("\n========== GENERATED PANDAS CODE ==========")
-        print(pandas_code)
-        print("===========================================\n")
 
         return pandas_code
     # Execute Pandas code 
@@ -295,47 +284,12 @@ first_to_last_day_growth_rate
                 locals=local_vars
             )
             result = python_tool.invoke(pandas_code)
-            # Retrieve the actual Python dictionary
-            # from the REPL execution namespace
-            # sales_metrics = local_vars.get("sales_metrics")
             if isinstance(result, dict):
                 return result
             return f"Execution did not produce a valid dictionary. Output: {result}"
         except Exception as error:
-            print("\n========== PANDAS EXECUTION ERROR ==========")
             print(error)
-            print("=============================================\n")
             return f"Execution error: {error}"
-
-    # def execute_pandas_code(
-    #     self,
-    #     pandas_code,
-    #     df
-    # ):
-
-    #     try:
-
-    #         python_tool = PythonAstREPLTool(
-    #             locals={
-    #                 "df": df,
-    #                 "pd": pd
-    #             }
-    #         )
-
-    #         result = python_tool.invoke(
-    #             pandas_code
-    #         )
-
-    #         return result
-
-    #     except Exception as error:
-
-    #         print("\n========== PANDAS EXECUTION ERROR ==========")
-    #         print(error)
-    #         print("=============================================\n")
-
-    #         return f"Execution error: {error}"
-    # Generate final business response
 
     def generate_response(
         self,

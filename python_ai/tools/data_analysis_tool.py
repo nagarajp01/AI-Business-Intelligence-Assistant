@@ -2,7 +2,6 @@ import pandas as pd
 from langchain_core.tools import BaseTool
 from agents.llm import load_llm
 from langchain_core.prompts import PromptTemplate
-from langchain_experimental.tools import PythonAstREPLTool
 from langchain_core.output_parsers import StrOutputParser
 
 
@@ -53,19 +52,15 @@ class DataAnalysisTool(BaseTool):
             input_variables=["question","columns"]
         )
 
-        # final_prompt1=prompt.invoke({
-        #     "question":question,
-        #     "columns":list(df.columns)
-        # })
         llm=load_llm()
         parser=StrOutputParser()
-        # response=llm.invoke(final_prompt1)
         analysis_chain= prompt1 | llm | parser
 
         response=analysis_chain.invoke({
             "question":question,
             "columns":list(df.columns)
         })
+        from langchain_experimental.tools import PythonAstREPLTool
 
         pythonTool=PythonAstREPLTool(
             locals={
@@ -75,8 +70,10 @@ class DataAnalysisTool(BaseTool):
         )
 
         # result=pythonTool.invoke(response.content)
-        result=pythonTool.invoke(response)  #as parser is used it converts into string
-
+        try:
+            result=pythonTool.invoke(response)  #as parser is used it converts into string
+        except Exception as error:
+            return f"Data analysis execution failed: {error}"
         prompt2=PromptTemplate(
             template="""
             The user asked: {question}
@@ -94,15 +91,6 @@ class DataAnalysisTool(BaseTool):
             "question":question,
             "result":result
         })
-
-        # final_prompt2=second_prompt.invoke({
-        #     "question":question,
-        #     "result":result
-        # })
-
-        # final_response=llm.invoke(final_prompt2)
-
-        # return final_response.content
         return final_response
 
 

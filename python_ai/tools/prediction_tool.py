@@ -239,35 +239,6 @@ unit: days
             ]
         )
 
-        # # Determine a readable frequency unit
-        # if frequency is not None:
-
-        #     if frequency.startswith("D"):
-        #         frequency_unit = "days"
-
-        #     elif frequency.startswith("W"):
-        #         frequency_unit = "weeks"
-
-        #     elif frequency.startswith("M"):
-        #         frequency_unit = "months"
-
-        #     elif frequency.startswith("Y"):
-        #         frequency_unit = "years"
-
-        #     else:
-        #         frequency_unit = "days"
-
-        # else:
-
-        #     if common_difference <= pd.Timedelta(days=1):
-        #         frequency_unit = "days"
-
-        #     elif common_difference <= pd.Timedelta(days=7):
-        #         frequency_unit = "weeks"
-
-        #     else:
-        #         frequency_unit = "months"
-
         # Create horizon chain
         horizon_chain = (
             horizon_prompt

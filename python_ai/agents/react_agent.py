@@ -1,34 +1,13 @@
 from langgraph.prebuilt import create_react_agent
-# from langchain.agents import create_agent
-# from langchain import hub
 from agents.llm import load_llm
 from tools.rag_tool import RAGTool
 from tools.web_tool import web_search
 from tools.news_tool import news_search
-from tools.data_analysis_tool import DataAnalysisTool
-from tools.prediction_tool import PredictionTool
-from tools.business_insights_tool import BusinessInsightsTool
 from tools.email_notification_tool import SendEmailTool
-# from tools.report_tool import ReportGenerationTool
-# from document_processors.document_processor import document_processor
 from langgraph.checkpoint.memory import MemorySaver
 
 
 def build_agent(retriever=None,data_file_path=None):
-    # rag_tool=RAGTool(
-    #     retriever=retriever
-    # )
-    # data_analysis_tool=DataAnalysisTool(
-    #   file_path=data_file_path
-    # )
-    # prediction_tool = PredictionTool(
-    # file_path=data_file_path
-    # )
-
-    # business_tool=BusinessInsightsTool(
-    #     file_path=data_file_path
-    # )
-    # email_tool = SendEmailTool()
     tools=[]
     # Register RAG tool only when a PDF is uploaded
     if retriever is not None:
@@ -36,6 +15,9 @@ def build_agent(retriever=None,data_file_path=None):
       tools.append(rag_tool)
     # Register Excel tools only when an Excel/CSV file is uploaded
     if data_file_path:
+      from tools.data_analysis_tool import DataAnalysisTool
+      from tools.prediction_tool import PredictionTool
+      from tools.business_insights_tool import BusinessInsightsTool
       data_analysis_tool=DataAnalysisTool(
         file_path=data_file_path
         )
@@ -366,17 +348,4 @@ PDF business report:
       prompt=system_prompt,
       checkpointer=checkpointer
       )
-
-    # agent=create_agent(
-    #     model=llm,
-    #     tools=[rag_tool,web_search,news_search],
-    # )
     return agent
-
-    # agent_executor=AgentExecutor(
-    #     agent=agent,
-    #     tools=[rag_tool,web_search,news_search],
-    #     verbose=True
-    # )
-
-    # return agent_executor
