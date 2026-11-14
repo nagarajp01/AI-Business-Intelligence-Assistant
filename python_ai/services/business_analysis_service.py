@@ -91,14 +91,14 @@ Do not include explanations.
             llm=llm,
             parser=parser
         )
-        print("GENERATED CODE:\n", pandas_code)
+        # print("GENERATED CODE:\n", pandas_code)
 
         # Execute generated Pandas code
         sales_metrics = self.execute_pandas_code(
             pandas_code=pandas_code,
             df=df
         )
-        print("EXEC RESULT:", sales_metrics)
+        # print("EXEC RESULT:", sales_metrics)
 
         # If execution fails, ask the LLM to correct the code (up to 3 times)
         if not isinstance(sales_metrics, dict):
@@ -166,7 +166,7 @@ Rules:
                     pandas_code=pandas_code,
                     df=df
                 )
-                print(f"RETRY {attempt + 1} RESULT:", sales_metrics)
+                # print(f"RETRY {attempt + 1} RESULT:", sales_metrics)
 
         # Final validation (return text instead of raising,
         # so the agent does not crash)
@@ -283,7 +283,7 @@ first_to_last_day_growth_rate
         try:
             exec(code, namespace)
         except Exception as error:
-            print(f"Pandas execution error: {error}")
+            # print(f"Pandas execution error: {error}")
             return f"Execution error: {type(error).__name__}: {error}"
 
         sales_metrics = namespace.get("sales_metrics")
